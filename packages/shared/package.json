@@ -1,0 +1,20 @@
+{
+  "name": "@venmail/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts",
+    "dev": "pnpm build",
+    "lint": "node -e \"console.log('shared: lint not configured yet')\"",
+    "test": "vitest run"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "tsup": "^7.2.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0"
+  }
+}
