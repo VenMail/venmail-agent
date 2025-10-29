@@ -74,19 +74,7 @@ interface SearchResult {
   relevanceScore: number;
 }
 
-interface DuckDuckGoTopic {
-  Text?: string;
-  FirstURL?: string;
-  Topics?: DuckDuckGoTopic[];
-}
-
-interface DuckDuckGoResponse {
-  Results?: Array<{
-    FirstURL?: string;
-    Text?: string;
-  }>;
-  RelatedTopics?: DuckDuckGoTopic[];
-}
+// Removed DuckDuckGo API types
 
 // FIX 2: Actually search instead of generating fake URLs
 const webSearchProvider: ProviderModule = {
@@ -120,8 +108,8 @@ const webSearchProvider: ProviderModule = {
     }
 
     try {
-      // Perform actual DuckDuckGo search
-      const searchResults = await performDuckDuckGoSearch(query, signal);
+      // No external API search; provider returns no results unless refactored to DOM-based.
+      const searchResults: SearchResult[] = [];
       
       // Extract social profiles and company website from real results
       const socialProfiles = extractSocialProfiles(searchResults, normalizedName);
@@ -161,7 +149,7 @@ const webSearchProvider: ProviderModule = {
             url: r.url,
             snippet: r.snippet,
             score: r.relevanceScore,
-            source: 'duckduckgo'
+            source: 'serp-dom'
           })),
           confidenceScores: {
             search: calculateConfidence(searchResults, { name: normalizedName, domain: normalizedDomain })
@@ -181,75 +169,9 @@ const webSearchProvider: ProviderModule = {
   }
 };
 
-async function performDuckDuckGoSearch(query: string, signal?: AbortSignal): Promise<SearchResult[]> {
-  const endpoint = 'https://api.duckduckgo.com/';
-  const url = `${endpoint}?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1&kl=us-en`;
+// Removed external search; this provider currently does not perform network requests.
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { Accept: 'application/json' },
-    signal
-  });
-
-  if (!response.ok) {
-    throw new Error(`DuckDuckGo API returned ${response.status}`);
-  }
-
-  const data = await response.json() as DuckDuckGoResponse;
-  const results: SearchResult[] = [];
-
-  // Process instant answer results
-  if (Array.isArray(data.Results)) {
-    for (const result of data.Results) {
-      if (result.FirstURL && result.Text) {
-        results.push({
-          title: result.Text,
-          url: result.FirstURL,
-          snippet: result.Text,
-          relevanceScore: 90
-        });
-      }
-    }
-  }
-
-  // Process related topics (more comprehensive)
-  if (Array.isArray(data.RelatedTopics)) {
-    const topicResults = flattenTopics(data.RelatedTopics);
-    results.push(...topicResults);
-  }
-
-  // Calculate relevance scores based on query match
-  const queryTokens = query.toLowerCase().split(/\s+/);
-  for (const result of results) {
-    const textToScore = `${result.title} ${result.snippet}`.toLowerCase();
-    const matches = queryTokens.filter(token => textToScore.includes(token)).length;
-    result.relevanceScore = Math.min(100, (matches / queryTokens.length) * 100);
-  }
-
-  // Sort by relevance and dedupe
-  return dedupeByUrl(results)
-    .sort((a, b) => b.relevanceScore - a.relevanceScore)
-    .slice(0, 20);
-}
-
-function flattenTopics(topics: DuckDuckGoTopic[]): SearchResult[] {
-  const results: SearchResult[] = [];
-  
-  for (const topic of topics) {
-    if (Array.isArray(topic.Topics)) {
-      results.push(...flattenTopics(topic.Topics));
-    } else if (topic.FirstURL && topic.Text) {
-      results.push({
-        title: topic.Text,
-        url: topic.FirstURL,
-        snippet: topic.Text,
-        relevanceScore: 70
-      });
-    }
-  }
-  
-  return results;
-}
+// Removed topic flattening helper
 
 function dedupeByUrl(results: SearchResult[]): SearchResult[] {
   const seen = new Set<string>();

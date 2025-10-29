@@ -14,6 +14,17 @@ export default defineManifest({
       run_at: 'document_idle'
     },
     {
+      matches: [
+        'https://www.google.com/search*',
+        'https://google.com/search*',
+        'https://www.bing.com/search*',
+        'https://bing.com/search*',
+        'https://duckduckgo.com/*'
+      ],
+      js: ['src/content/serp/index.ts'],
+      run_at: 'document_idle'
+    },
+    {
       matches: ['https://*.contactout.com/*', 'https://*.contactout.io/*'],
       js: ['src/content/contactout/index.ts'],
       run_at: 'document_idle'

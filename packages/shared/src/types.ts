@@ -79,7 +79,8 @@ export type ExtensionAction =
   | 'saveSettings'
   | 'registerDetectedContacts'
   | 'getDetectedContacts'
-  | 'getLastContextLookup';
+  | 'getLastContextLookup'
+  | 'popupReady';
 
 export interface ContactLookup {
   email?: string;
@@ -155,6 +156,27 @@ export interface GetLastContextLookupMessage {
   action: 'getLastContextLookup';
 }
 
+export interface PopupReadyMessage {
+  action: 'popupReady';
+}
+
+export interface PendingLookupMessage {
+  type: 'venmail-pending-lookup';
+  pendingLookup: {
+    lookup: ContactLookup;
+    context?: FetchContactInfoMessage['context'];
+  };
+}
+
+export interface LookupProgressUpdate {
+  type: 'venmail-lookup-progress';
+  stage: string;
+  taskId?: ScrapeTaskId;
+  notes?: string[];
+  timestamp: string;
+  lookupKey: string;
+}
+
 export type ExtensionMessage =
   | PingMessage
   | FetchContactInfoMessage
@@ -163,7 +185,33 @@ export type ExtensionMessage =
   | RegisterDetectedContactsMessage
   | GetDetectedContactsMessage
   | GetLastContextLookupMessage
+  | PopupReadyMessage
   | GetSelectionContextMessage;
+
+export type RuntimePushMessage =
+  | PendingLookupMessage
+  | LookupProgressUpdate
+  | {
+      type: 'venmail-context-lookup';
+      contextLookup?: {
+        request?: ContactLookup;
+        response?: ReputationResponse;
+        error?: string;
+        updatedAt?: string;
+        context?: FetchContactInfoMessage['context'];
+      };
+    }
+  | {
+      type: 'venmail-detection-updated';
+      detection?: {
+        tabId?: number;
+        snapshot?: DetectedContactSnapshot | null;
+      };
+    }
+  | {
+      type: 'venmail-settings-updated';
+      settings: ExtensionSettings;
+    };
 
 export type ContactRequestMessage = FetchContactInfoMessage;
 
@@ -200,6 +248,7 @@ export interface ReputationSignals {
 
 export interface ReputationResponse {
   reputation: ReputationBreakdown;
+  reputationSignals: ReputationSignals;
   socialProfiles: {
     linkedin?: string;
     twitter?: string;
@@ -307,6 +356,10 @@ export interface ExtensionResponseMessage {
     response?: ReputationResponse;
     error?: string;
     updatedAt?: string;
+    context?: FetchContactInfoMessage['context'];
+  };
+  pendingLookup?: {
+    lookup: ContactLookup;
     context?: FetchContactInfoMessage['context'];
   };
   error?: string;

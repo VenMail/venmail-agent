@@ -7,6 +7,7 @@ import type {
   ExtensionSettings,
   FetchContactInfoMessage,
   GetDetectedContactsMessage,
+  LookupProgressUpdate,
   RegisterDetectedContactsMessage,
   ReputationResponse,
   SelectionContext,
@@ -24,6 +25,8 @@ import {
   loadLastContextLookup,
   saveLastContextLookup
 } from './storage';
+
+let pendingPopupLookup: { lookup: ContactLookup; context?: FetchContactInfoMessage['context'] } | null = null;
 
 chrome.runtime.onMessage.addListener(
   (message: ExtensionMessage, sender: chrome.runtime.MessageSender, sendResponse): boolean => {
@@ -61,15 +64,52 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     return;
   }
 
-  // Open popup in standalone window
-  chrome.windows.create({
-    url: chrome.runtime.getURL('popup/index.html') + `#lookup=${encodeURIComponent(info.selectionText)}`,
-    type: 'popup',
-    width: 400,
-    height: 600,
-    focused: true
+  const lookup: ContactLookup = { name: info.selectionText?.trim() };
+  const context: FetchContactInfoMessage['context'] | undefined = tab?.id
+    ? {
+        tabId: tab.id,
+        pageUrl: tab.url,
+        pageTitle: tab.title
+      }
+    : undefined;
+
+  void openActionPopupWithLookup({ lookup, context }).catch((error) => {
+    console.warn('[venmail] failed to open popup from context menu', error);
   });
 });
+
+async function openActionPopupWithLookup(payload: {
+  lookup: ContactLookup;
+  context?: FetchContactInfoMessage['context'];
+}): Promise<void> {
+  pendingPopupLookup = payload;
+  try {
+    await chrome.action.openPopup();
+  } catch (error) {
+    // In some Chromium builds, openPopup rejects if already open; ignore
+    console.debug('[venmail] chrome.action.openPopup failed', error);
+  }
+
+  flushPendingPopupLookup();
+}
+
+function flushPendingPopupLookup(): void {
+  if (!pendingPopupLookup) {
+    return;
+  }
+
+  chrome.runtime.sendMessage(
+    {
+      type: 'venmail-pending-lookup',
+      pendingLookup: pendingPopupLookup
+    },
+    () => {
+      if (!chrome.runtime.lastError) {
+        pendingPopupLookup = null;
+      }
+    }
+  );
+}
 
 chrome.tabs.onRemoved.addListener((tabId) => {
   void clearDetectionSnapshot(tabId).then(() => notifyDetectionUpdate(tabId, null)).catch(() => undefined);
@@ -120,6 +160,18 @@ async function handleMessage(message: ExtensionMessage, tabId?: number): Promise
     case 'getLastContextLookup':
       return handleGetLastContextLookup();
 
+    case 'popupReady': {
+      const pending = pendingPopupLookup;
+      if (pending) {
+        pendingPopupLookup = null;
+      }
+      return {
+        success: true,
+        pendingLookup: pending ?? undefined,
+        meta: { notes: ['popup_ready'] }
+      } satisfies ExtensionResponseMessage;
+    }
+
     default:
       return buildErrorResponse(`Unknown action: ${(message as ExtensionMessage).action ?? 'n/a'}`);
   }
@@ -149,7 +201,10 @@ async function handleFetchContactInfo(
   }
 
   try {
-    const { response, fromCache, notes } = await orchestrateLookup(lookup, { context });
+    const { response, fromCache, notes } = await orchestrateLookup(lookup, {
+      context,
+      onProgress: (update) => notifyLookupProgress(update)
+    });
 
     const meta: ExtensionResponseMeta = {
       fromCache,
@@ -301,6 +356,12 @@ function notifyContextLookupUpdate(payload: {
   context?: FetchContactInfoMessage['context'];
 }): void {
   chrome.runtime.sendMessage({ type: 'venmail-context-lookup', ...payload }, () => {
+    void chrome.runtime.lastError;
+  });
+}
+
+function notifyLookupProgress(update: LookupProgressUpdate): void {
+  chrome.runtime.sendMessage(update, () => {
     void chrome.runtime.lastError;
   });
 }

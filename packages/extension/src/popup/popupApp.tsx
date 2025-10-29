@@ -5,6 +5,7 @@ import type {
   ExtensionResponseMessage,
   ExtensionSettings,
   FetchContactInfoMessage,
+  LookupProgressUpdate,
   ReputationResponse,
   SaveSettingsMessage,
   SelectionContext
@@ -13,7 +14,7 @@ import type {
 import './popupApp.css';
 import { DEFAULT_SETTINGS } from '../shared/settings';
 import { safeSendMessage, safeSendTabsMessage } from '../shared/messaging';
-import { ReputationBreakdown, ReputationSignals, explainReputation } from '@venmail/shared';
+import { ReputationBreakdown, ReputationSignals, buildRequestKey, explainReputation } from '@venmail/shared';
 import { EditIcon } from 'lucide-react';
 
 type StatusVariant = 'info' | 'success' | 'warning' | 'error';
@@ -189,7 +190,7 @@ interface LookupFormState {
   company: string;
 }
 
-type ViewMode = 'insights' | 'advanced';
+type ViewMode = 'results' | 'search' | 'detection' | 'advanced';
 type PopupMode = 'query' | 'result';
 
 type FormErrors = Partial<Record<keyof LookupFormState, string>>;
@@ -358,10 +359,12 @@ export function PopupApp(): JSX.Element {
   const [isSaving, setIsSaving] = useState(false);
   const [isFetching, setIsFetching] = useState(false);
   const [lastResponse, setLastResponse] = useState<ReputationResponse | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('insights');
+  const [viewMode, setViewMode] = useState<ViewMode>('search');
   const [lookupLatencyMs, setLookupLatencyMs] = useState<number | null>(null);
   const [lookupHistory, setLookupHistory] = useState<LookupHistoryEntry[]>([]);
   const [lastLookupRequest, setLastLookupRequest] = useState<ContactLookup | null>(null);
+  const [progressUpdates, setProgressUpdates] = useState<LookupProgressUpdate[]>([]);
+  const [activeLookupKey, setActiveLookupKey] = useState<string | null>(null);
   const [debugLoggingEnabled, setDebugLoggingEnabled] = useState<boolean>(() => {
     try {
       const stored = localStorage.getItem('venmail_debug_logging');
@@ -374,6 +377,8 @@ export function PopupApp(): JSX.Element {
   const [lookupQuery, setLookupQuery] = useState('');
   const [reputation, setReputation] = useState<ReputationBreakdown | null>(null);
   const [reputationSignals, setReputationSignals] = useState<ReputationSignals | null>(null);
+  const [lastFromCache, setLastFromCache] = useState<boolean>(false);
+  const pendingLookupRef = useRef<{ lookup: ContactLookup; context?: FetchContactInfoMessage['context'] } | null>(null);
   const selectionSignatureRef = useRef<string | null>(null);
 
   const applySelectionContext = useCallback(
@@ -557,7 +562,7 @@ export function PopupApp(): JSX.Element {
   }, []);
 
   const performLookup = useCallback(
-    (lookup: ContactLookup) => {
+    (lookup: ContactLookup, options?: { triggerMode?: 'auto' | 'manual'; context?: FetchContactInfoMessage['context'] }) => {
       setIsFetching(true);
       const startTime = performance.now();
       const request: FetchContactInfoMessage = {
@@ -565,7 +570,8 @@ export function PopupApp(): JSX.Element {
         email: lookup.email,
         name: lookup.name,
         domain: lookup.domain,
-        company: lookup.company
+        company: lookup.company,
+        context: options?.context
       };
 
       setLastLookupRequest({
@@ -574,6 +580,11 @@ export function PopupApp(): JSX.Element {
         domain: lookup.domain,
         company: lookup.company
       });
+
+      const lookupKey = buildRequestKey(lookup);
+      setActiveLookupKey(lookupKey);
+      setProgressUpdates([]);
+      setViewMode('results');
 
       chrome.runtime.sendMessage(request, (response: ExtensionResponseMessage) => {
         setIsFetching(false);
@@ -602,6 +613,14 @@ export function PopupApp(): JSX.Element {
 
         if (response?.success && response.data) {
           setLastResponse(response.data);
+          setLastFromCache(Boolean(response.meta?.fromCache));
+          setReputation(response.data.reputation);
+          setReputationSignals(response.data.reputationSignals ?? null);
+          setLookupQuery(
+            lookup.email || lookup.name || lookup.domain || lookup.company || lookupQuery || 'Latest lookup'
+          );
+          setMode('result');
+          setViewMode('results');
           const baseLabel = response.meta?.fromCache ? 'Insights loaded from cache' : 'Fresh insights ready';
           setStatus({ label: `${baseLabel} in ${Math.round(duration)}ms`, variant: 'success' });
           appendLookupHistory({ timestamp: Date.now(), durationMs: duration, source });
@@ -611,7 +630,7 @@ export function PopupApp(): JSX.Element {
         }
       });
     },
-    [appendLookupHistory, debugLoggingEnabled, setStatus]
+    [appendLookupHistory, debugLoggingEnabled, lookupQuery, setStatus]
   );
 
   const handleLookupSubmit = useCallback(
@@ -624,7 +643,7 @@ export function PopupApp(): JSX.Element {
       }
 
       setLookupErrors({});
-      performLookup({ ...lookupForm });
+      performLookup({ ...lookupForm }, { triggerMode: 'manual' });
     },
     [performLookup, lookupForm, validateLookupForm]
   );
@@ -633,19 +652,70 @@ export function PopupApp(): JSX.Element {
     if (!lastLookupRequest || isFetching) {
       return;
     }
-    performLookup({ ...lastLookupRequest });
+    performLookup({ ...lastLookupRequest }, { triggerMode: 'manual' });
   }, [isFetching, lastLookupRequest, performLookup]);
+
+  const handleClearCache = useCallback(() => {
+    if (!activeLookupKey) return;
+    const storageKey = `venmail:reputation:${activeLookupKey}`;
+    chrome.storage.local.remove(storageKey, () => {
+      setLastFromCache(false);
+      setStatus({ label: 'Cache cleared', variant: 'success' });
+    });
+  }, [activeLookupKey]);
 
   const handleDetectionLookup = useCallback(
     (value: string, type: 'email' | 'phone') => {
       if (type === 'email') {
-        performLookup({ email: value });
+        performLookup({ email: value }, { triggerMode: 'manual' });
       } else {
-        performLookup({ name: value });
+        performLookup({ name: value }, { triggerMode: 'manual' });
       }
     },
     [performLookup]
   );
+
+  const bootstrapPendingLookup = useCallback(
+    (payload: { lookup: ContactLookup; context?: FetchContactInfoMessage['context'] }) => {
+      const targetLookup = payload.lookup;
+      if (!targetLookup.email && !targetLookup.name) {
+        return;
+      }
+
+      setLookupForm((prev) => ({
+        name: targetLookup.name ?? prev.name,
+        email: targetLookup.email ?? prev.email,
+        domain: targetLookup.domain ?? prev.domain,
+        company: targetLookup.company ?? prev.company
+      }));
+      setLookupErrors({});
+      setMode('result');
+      performLookup(targetLookup, { triggerMode: 'auto', context: payload.context });
+    },
+    [performLookup]
+  );
+
+  useEffect(() => {
+    safeSendMessage({ action: 'popupReady' }, (response: ExtensionResponseMessage) => {
+      if (response?.pendingLookup) {
+        pendingLookupRef.current = response.pendingLookup;
+        bootstrapPendingLookup(response.pendingLookup);
+      }
+    });
+  }, [bootstrapPendingLookup]);
+
+  useEffect(() => {
+    if (pendingLookupRef.current) {
+      bootstrapPendingLookup(pendingLookupRef.current);
+    }
+  }, [bootstrapPendingLookup]);
+
+  const activeReputationSignals = useMemo<ReputationSignals | null>(() => {
+    if (reputationSignals) {
+      return reputationSignals;
+    }
+    return lastResponse?.reputationSignals ?? null;
+  }, [lastResponse?.reputationSignals, reputationSignals]);
 
   useEffect(() => {
     chrome.runtime.sendMessage({ action: 'ping' }, (response: ExtensionResponseMessage) => {
@@ -698,7 +768,8 @@ export function PopupApp(): JSX.Element {
         detection?: { tabId?: number; snapshot?: DetectedContactSnapshot | null };
         contextLookup?: ContextLookupState;
         settings?: ExtensionSettings;
-      };
+        pendingLookup?: { lookup: ContactLookup; context?: FetchContactInfoMessage['context'] };
+      } | LookupProgressUpdate;
 
       if (payload.type === 'venmail-detection-updated' && typeof payload.detection?.tabId === 'number') {
         if (!activeTabId || payload.detection.tabId === activeTabId) {
@@ -715,6 +786,20 @@ export function PopupApp(): JSX.Element {
         setSettings(payload.settings);
         setFormState(mapSettingsToForm(payload.settings));
       }
+
+      if (payload.type === 'venmail-pending-lookup' && 'pendingLookup' in payload && payload.pendingLookup) {
+        pendingLookupRef.current = payload.pendingLookup;
+        bootstrapPendingLookup(payload.pendingLookup);
+      }
+
+      if (payload.type === 'venmail-lookup-progress') {
+        const progress = payload as LookupProgressUpdate;
+        setProgressUpdates((prev) => {
+          const next = prev.filter((entry) => entry.lookupKey === progress.lookupKey);
+          next.push(progress);
+          return next;
+        });
+      }
     };
 
     chrome.runtime.onMessage.addListener(listener);
@@ -722,7 +807,7 @@ export function PopupApp(): JSX.Element {
     return () => {
       chrome.runtime.onMessage.removeListener(listener);
     };
-  }, [activeTabId]);
+  }, [activeTabId, applySelectionContext, bootstrapPendingLookup]);
 
   const hasUnsavedChanges = useMemo(() => {
     if (!settings || !formState) {
@@ -733,6 +818,13 @@ export function PopupApp(): JSX.Element {
   }, [settings, formState]);
 
   const sanitizeNumberInput = (value: string): string => value.replace(/[^0-9]/g, '');
+
+  const activeProgress = useMemo(() => {
+    if (!activeLookupKey) {
+      return [] as LookupProgressUpdate[];
+    }
+    return progressUpdates.filter((entry) => entry.lookupKey === activeLookupKey);
+  }, [activeLookupKey, progressUpdates]);
 
   const updateFormState = (updater: (prev: FormState) => FormState): void => {
     setFormState((prev) => {
@@ -1311,211 +1403,222 @@ export function PopupApp(): JSX.Element {
     );
   };
 
-  const renderInsights = () => (
-    <>
-      <section className="lookup-card">
-        <header className="lookup-card__header">
-          <div>
-            <h2>Smart lookup</h2>
-            <p>Context-aware fields pull from page selection automatically.</p>
-          </div>
-          <button type="button" className="ghost-button" onClick={() => (activeTabId ? requestSelectionFromTab(activeTabId) : undefined)}>
-            Refresh selection
-          </button>
-        </header>
+  const renderSearchTab = (): JSX.Element => {
+    const stages: LookupProgressUpdate[] = isFetching
+      ? activeProgress.length
+        ? activeProgress
+        : activeLookupKey
+        ? [
+            {
+              type: 'venmail-lookup-progress',
+              stage: 'Preparing lookup…',
+              timestamp: new Date().toISOString(),
+              lookupKey: activeLookupKey
+            }
+          ]
+        : []
+      : [];
 
-        <div className="lookup-card__body">
-          <aside className="callout info">
-            <strong>Tip:</strong> Highlight a name or email on the page and relaunch the popup to prefill the form instantly.
-          </aside>
-
-          <form className="lookup-form" onSubmit={handleLookupSubmit}>
-            <div className="lookup-grid lookup-grid--two">
-              <div className="field">
-                <label className="field__label">Name</label>
-                <input
-                  type="text"
-                  autoComplete="name"
-                  placeholder="e.g. Jane Doe"
-                  value={lookupForm.name}
-                  onChange={(event) => handleLookupFieldChange('name', event.currentTarget.value)}
-                />
-                {lookupErrors.name && <span className="field__error">{lookupErrors.name}</span>}
-              </div>
-
-              <div className="field">
-                <label className="field__label">Email</label>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="jane@example.com"
-                  value={lookupForm.email}
-                  onChange={(event) => handleLookupFieldChange('email', event.currentTarget.value)}
-                />
-                {lookupErrors.email && <span className="field__error">{lookupErrors.email}</span>}
-              </div>
-
-              <div className="field">
-                <label className="field__label">Domain</label>
-                <input
-                  type="text"
-                  inputMode="url"
-                  placeholder="example.com"
-                  value={lookupForm.domain}
-                  onChange={(event) => handleLookupFieldChange('domain', event.currentTarget.value)}
-                />
-                {lookupErrors.domain && <span className="field__error">{lookupErrors.domain}</span>}
-              </div>
-
-              <div className="field">
-                <label className="field__label">Company</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Example Inc."
-                  value={lookupForm.company}
-                  onChange={(event) => handleLookupFieldChange('company', event.currentTarget.value)}
-                />
-              </div>
+    return (
+      <div className="tab-scroll">
+        <section className="lookup-card">
+          <header className="lookup-card__header">
+            <div>
+              <h2>Smart lookup</h2>
+              <p>Context-aware fields pull from page selection automatically.</p>
             </div>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => (activeTabId ? requestSelectionFromTab(activeTabId) : undefined)}
+            >
+              Refresh selection
+            </button>
+          </header>
 
-            <footer className="lookup-actions">
-              <button type="submit" disabled={isFetching}>
-                {isFetching ? 'Gathering insights…' : 'Reveal profile insights'}
-              </button>
+          <div className="lookup-card__body">
+            <aside className="callout info">
+              <strong>Tip:</strong> Highlight a name or email on the page and relaunch the popup to prefill the form instantly.
+            </aside>
 
-              <div className="lookup-status">
-                {contextLookup?.updatedAt ? (
-                  <div className="recent-lookup">
-                    <span className="recent-lookup__label">Last request</span>
-                    <div className="recent-lookup__meta">
-                      <span>{new Date(contextLookup.updatedAt).toLocaleTimeString()}</span>
-                      {contextLookup.error ? <span className="recent-lookup__error">{contextLookup.error}</span> : <span>Ready</span>}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="lookup-hint">Run a search to populate insights below.</p>
-                )}
+            <form className="lookup-form" onSubmit={handleLookupSubmit}>
+              <div className="lookup-grid lookup-grid--two">
+                <div className="field">
+                  <label className="field__label">Name</label>
+                  <input
+                    type="text"
+                    autoComplete="name"
+                    placeholder="e.g. Jane Doe"
+                    value={lookupForm.name}
+                    onChange={(event) => handleLookupFieldChange('name', event.currentTarget.value)}
+                  />
+                  {lookupErrors.name && <span className="field__error">{lookupErrors.name}</span>}
+                </div>
+
+                <div className="field">
+                  <label className="field__label">Email</label>
+                  <input
+                    type="email"
+                    autoComplete="email"
+                    placeholder="jane@example.com"
+                    value={lookupForm.email}
+                    onChange={(event) => handleLookupFieldChange('email', event.currentTarget.value)}
+                  />
+                  {lookupErrors.email && <span className="field__error">{lookupErrors.email}</span>}
+                </div>
+
+                <div className="field">
+                  <label className="field__label">Domain</label>
+                  <input
+                    type="text"
+                    inputMode="url"
+                    placeholder="example.com"
+                    value={lookupForm.domain}
+                    onChange={(event) => handleLookupFieldChange('domain', event.currentTarget.value)}
+                  />
+                  {lookupErrors.domain && <span className="field__error">{lookupErrors.domain}</span>}
+                </div>
+
+                <div className="field">
+                  <label className="field__label">Company</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Example Inc."
+                    value={lookupForm.company}
+                    onChange={(event) => handleLookupFieldChange('company', event.currentTarget.value)}
+                  />
+                </div>
               </div>
-            </footer>
-          </form>
-        </div>
-      </section>
 
-      <section className="insights-card">
-        <div className="insights-card__header">
-          <h2>Signals & reputation</h2>
-          <button
-            type="button"
-            className="ghost-button"
-            onClick={handleRefreshLookup}
-            disabled={!lastLookupRequest || isFetching}
-          >
-            {isFetching ? 'Refreshing…' : 'Refresh insights'}
-          </button>
-        </div>
-        {renderReputation(lastResponse)}
-      </section>
+              <footer className="lookup-actions">
+                <button type="submit" disabled={isFetching}>
+                  {isFetching ? 'Gathering insights…' : 'Reveal profile insights'}
+                </button>
 
-      {renderMapsInsights(lastResponse, contextLookup?.context)}
+                <div className="lookup-status">
+                  {contextLookup?.updatedAt ? (
+                    <div className="recent-lookup">
+                      <span className="recent-lookup__label">Last request</span>
+                      <div className="recent-lookup__meta">
+                        <span>{new Date(contextLookup.updatedAt).toLocaleTimeString()}</span>
+                        {contextLookup.error ? <span className="recent-lookup__error">{contextLookup.error}</span> : <span>Ready</span>}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="lookup-hint">Run a search to populate insights below.</p>
+                  )}
+                </div>
+              </footer>
+            </form>
+          </div>
+        </section>
 
+        <section className="insights-card insights-card--hint">
+          <h2>What happens next</h2>
+          <p>
+            Submit the form and Venmail will collect SERP, Maps, profile, and contact signals automatically. Jump to
+            <strong> Results</strong> to watch the progress.
+          </p>
+        </section>
+
+        {stages.length ? (
+          <section className="insights-card lookup-progress">
+            <h2>Gathering signals…</h2>
+            <ul>
+              {stages.map((entry) => (
+                <li key={`${entry.lookupKey}-${entry.timestamp}`}>
+                  <strong>{entry.stage}</strong>
+                  {entry.taskId ? <span className="task-tag">{entry.taskId}</span> : null}
+                  {entry.notes?.length ? <p>{entry.notes.join(' ')}</p> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+      </div>
+    );
+  };
+
+  const renderDetectionTab = (): JSX.Element => (
+    <div className="tab-scroll">
       <section className="insights-card">
         <h2>Detection snapshot</h2>
         {renderDetectionSnapshot(detectionSnapshot, handleDetectionLookup)}
       </section>
-
-      {(lookupLatencyMs !== null || lookupHistory.length) ? (
-        <section className="insights-card insights-card--meta">
-          <h2>Performance</h2>
-          {lookupLatencyMs !== null ? (
-            <p className="insight-placeholder">Last lookup completed in {Math.round(lookupLatencyMs)}ms.</p>
-          ) : null}
-          <div className="performance-controls">
-            <label className="field checkbox">
-              <input type="checkbox" checked={debugLoggingEnabled} onChange={handleToggleDebugLogging} /> Enable debug logging
-            </label>
-            <button type="button" className="ghost-button" onClick={handleClearLookupHistory} disabled={!lookupHistory.length}>
-              Clear history
-            </button>
-          </div>
-          {lookupHistory.length ? (
-            <ul className="performance-history">
-              {lookupHistory
-                .slice()
-                .reverse()
-                .map((entry, index) => (
-                  <li key={entry.timestamp} className={`performance-history__item performance-history__item--${entry.source}`}>
-                    <span>{new Date(entry.timestamp).toLocaleTimeString()}</span>
-                    <span>{Math.round(entry.durationMs)}ms</span>
-                    <span>{entry.source}</span>
-                  </li>
-                ))}
-            </ul>
-          ) : null}
-        </section>
-      ) : null}
-
-      {mode === 'result' && reputation && (
-        <div className="result-container">
-          <div className="header">
-            <h2>{lookupQuery}</h2>
-            <button 
-              className="edit-btn"
-              onClick={() => setMode('query')}
-            >
-              <EditIcon size={16} /> Edit Search
-            </button>
-          </div>
-          
-          <div className="reputation-badge">
-            <div className="score">{reputation.score}</div>
-            <div className="status">{reputation.status}</div>
-          </div>
-          
-          <div className="explanation">
-            <h3>Reputation Breakdown</h3>
-            <ul>
-              {explainReputation(reputation, reputationSignals).map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-    </>
+    </div>
   );
 
-  const renderResult = () => {
-    if (mode === 'query') {
-      return renderInsights();
-    } else {
+  const renderResultTab = (): JSX.Element => {
+    if (isFetching) {
+      const stages: LookupProgressUpdate[] = activeProgress.length
+        ? activeProgress
+        : activeLookupKey
+        ? [
+            {
+              type: 'venmail-lookup-progress',
+              stage: 'Starting lookup…',
+              timestamp: new Date().toISOString(),
+              lookupKey: activeLookupKey
+            }
+          ]
+        : [];
+
       return (
-        <div className="result-container">
-          <div className="header">
-            <h2>{lookupQuery}</h2>
-            <button 
-              className="edit-btn"
-              onClick={() => setMode('query')}
-            >
-              <EditIcon size={16} /> Edit Search
-            </button>
-          </div>
-          
-          <div className="reputation-badge">
-            <div className="score">{reputation.score}</div>
-            <div className="status">{reputation.status}</div>
-          </div>
-          
-          <div className="explanation">
-            <h3>Reputation Breakdown</h3>
-            <ul>
-              {explainReputation(reputation, reputationSignals).map((line, i) => (
-                <li key={i}>{line}</li>
-              ))}
-            </ul>
-          </div>
-        </div>
+        <section className="insights-card lookup-progress">
+          <h2>Lookup in progress</h2>
+          <ul>
+            {stages.map((entry) => (
+              <li key={`${entry.lookupKey}-${entry.timestamp}`}>
+                <strong>{entry.stage}</strong>
+                {entry.taskId ? <span className="task-tag">{entry.taskId}</span> : null}
+                {entry.notes?.length ? <p>{entry.notes.join(' ')}</p> : null}
+              </li>
+            ))}
+          </ul>
+        </section>
       );
     }
+
+    if (!reputation || !activeReputationSignals || !lastResponse) {
+      return <p className="empty-state">Run a lookup to generate insights.</p>;
+    }
+
+    return (
+      <div className="result-container">
+        <div className="result-banner">
+          <div>
+            <h2>{lookupQuery}</h2>
+            <span className="result-meta">Score {reputation.score} • {reputation.status}</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {lastFromCache ? (
+              <button className="ghost-button ghost-button--muted" onClick={handleClearCache} title="Clear cached result">
+                Clear cache
+              </button>
+            ) : null}
+            <button className="ghost-button" onClick={() => setViewMode('search')}>
+              <EditIcon size={16} /> Edit search
+            </button>
+          </div>
+        </div>
+
+        <InsightSummary response={lastResponse} />
+
+        <section className="insights-card">
+          <h3>Reputation breakdown</h3>
+          <ul>
+            {explainReputation(reputation, activeReputationSignals).map((line, index) => (
+              <li key={index}>{line}</li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="insights-card">
+          <h3>Detected contacts</h3>
+          {renderDetectionSnapshot(detectionSnapshot, handleDetectionLookup)}
+        </section>
+      </div>
+    );
   };
 
   return (
@@ -1529,10 +1632,24 @@ export function PopupApp(): JSX.Element {
           <nav className="nav">
             <button
               type="button"
-              className={viewMode === 'insights' ? 'nav__item nav__item--active' : 'nav__item'}
-              onClick={() => setViewMode('insights')}
+              className={viewMode === 'results' ? 'nav__item nav__item--active' : 'nav__item'}
+              onClick={() => setViewMode('results')}
             >
-              Insights
+              Results
+            </button>
+            <button
+              type="button"
+              className={viewMode === 'search' ? 'nav__item nav__item--active' : 'nav__item'}
+              onClick={() => setViewMode('search')}
+            >
+              Search form
+            </button>
+            <button
+              type="button"
+              className={viewMode === 'detection' ? 'nav__item nav__item--active' : 'nav__item'}
+              onClick={() => setViewMode('detection')}
+            >
+              Detection
             </button>
             <button
               type="button"
@@ -1545,7 +1662,12 @@ export function PopupApp(): JSX.Element {
         </div>
       </header>
 
-      <main className={`view-${viewMode}`}>{viewMode === 'insights' ? renderResult() : renderAdvancedSettings()}</main>
+      <main className={`view-${viewMode}`}>
+        {viewMode === 'results' && renderResultTab()}
+        {viewMode === 'search' && renderSearchTab()}
+        {viewMode === 'detection' && renderDetectionTab()}
+        {viewMode === 'advanced' && renderAdvancedSettings()}
+      </main>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import type {
   ContactLookup,
   ExtensionSettings,
   FetchContactInfoMessage,
+  LookupProgressUpdate,
   ReputationResponse,
   ScrapeResult,
   ScrapeTaskId
@@ -33,12 +34,28 @@ type TaskOrder = ScrapeTaskId[];
 
 export async function orchestrateLookup(
   lookup: ContactLookup,
-  options?: { context?: FetchContactInfoMessage['context'] }
+  options?: { context?: FetchContactInfoMessage['context']; onProgress?: (update: LookupProgressUpdate) => void }
 ): Promise<LookupOutcome> {
+  const requestKey = buildRequestKey(lookup);
+  const emitProgress = (stage: string, taskId?: ScrapeTaskId, notes?: string[]) => {
+    options?.onProgress?.({
+      type: 'venmail-lookup-progress',
+      stage,
+      taskId,
+      notes,
+      timestamp: new Date().toISOString(),
+      lookupKey: requestKey
+    });
+  };
+
+  emitProgress('started');
+
   const settings = await loadSettings();
   const cacheEntry = await getReputationCache(lookup);
 
   if (cacheEntry) {
+    emitProgress('cache-hit', undefined, ['Reputation served from cache.']);
+    emitProgress('completed');
     return {
       response: cacheEntry.payload,
       fromCache: true,
@@ -46,7 +63,6 @@ export async function orchestrateLookup(
     };
   }
 
-  const requestKey = buildRequestKey(lookup);
   const taskQueue = buildTaskQueue(settings);
   const results: ScrapeResult[] = [];
   const taskTtls: number[] = [];
@@ -69,15 +85,18 @@ export async function orchestrateLookup(
 
     if (rateLimit > 0 && lastRun && now - lastRun < rateLimit) {
       if (cached?.payload) {
+        emitProgress('task-cache-hit', task, ['Using cached result (rate limited).']);
         results.push(markScrapeResult(task, cached.payload, ['Using cached result (rate limited).']));
         continue;
       }
 
+      emitProgress('task-rate-limited', task, ['Skipped due to rate limiting.']);
       aggregatedNotes.push(`${task} skipped due to rate limiting.`);
       continue;
     }
 
     if (cached?.payload) {
+      emitProgress('task-cache-hit', task, ['Using cached result.']);
       results.push(markScrapeResult(task, cached.payload));
       continue;
     }
@@ -86,6 +105,7 @@ export async function orchestrateLookup(
     const timeoutId = setTimeout(() => abortController.abort('timeout'), TASK_TIMEOUT_MS);
 
     try {
+      emitProgress('task-start', task);
       const scrape = await runScrapeTask({
         task,
         lookup,
@@ -105,6 +125,7 @@ export async function orchestrateLookup(
 
       const normalized = markScrapeResult(task, scrape);
       results.push(normalized);
+      emitProgress('task-success', task, normalized.notes?.length ? normalized.notes : undefined);
 
       if (taskTtl && taskTtl > 0) {
         await setScrapeCache(task, requestKey, normalized, taskTtl);
@@ -115,6 +136,7 @@ export async function orchestrateLookup(
       clearTimeout(timeoutId);
       const message = error instanceof Error ? error.message : String(error);
       aggregatedNotes.push(`${task} failed: ${message}`);
+      emitProgress('task-error', task, [message]);
       results.push({
         task,
         signals: {},
@@ -143,6 +165,7 @@ export async function orchestrateLookup(
     });
   }
 
+  emitProgress('aggregating');
   const response = buildReputationResponse(results);
   if (options?.context?.selection) {
     response.additionalData.selectionInsights =
@@ -159,6 +182,8 @@ export async function orchestrateLookup(
   const reputationTtl = taskTtls.length ? Math.min(...taskTtls) : REPUTATION_DEFAULT_TTL_MS;
 
   await setReputationCache(requestKey, response, tasksUsed, reputationTtl);
+
+  emitProgress('completed');
 
   return {
     response,

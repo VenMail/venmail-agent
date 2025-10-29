@@ -169,6 +169,7 @@ export function buildReputationResponse(results: ScrapeResult[]): ReputationResp
 
   return {
     reputation: breakdown,
+    reputationSignals: merged.signals,
     socialProfiles: merged.socialProfiles,
     companyInfo: merged.companyInfo,
     additionalData: {
