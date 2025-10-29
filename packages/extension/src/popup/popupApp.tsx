@@ -13,6 +13,8 @@ import type {
 import './popupApp.css';
 import { DEFAULT_SETTINGS } from '../shared/settings';
 import { safeSendMessage, safeSendTabsMessage } from '../shared/messaging';
+import { ReputationBreakdown, ReputationSignals, explainReputation } from '@venmail/shared';
+import { EditIcon } from 'lucide-react';
 
 type StatusVariant = 'info' | 'success' | 'warning' | 'error';
 
@@ -188,6 +190,7 @@ interface LookupFormState {
 }
 
 type ViewMode = 'insights' | 'advanced';
+type PopupMode = 'query' | 'result';
 
 type FormErrors = Partial<Record<keyof LookupFormState, string>>;
 
@@ -367,6 +370,10 @@ export function PopupApp(): JSX.Element {
       return false;
     }
   });
+  const [mode, setMode] = useState<PopupMode>('query');
+  const [lookupQuery, setLookupQuery] = useState('');
+  const [reputation, setReputation] = useState<ReputationBreakdown | null>(null);
+  const [reputationSignals, setReputationSignals] = useState<ReputationSignals | null>(null);
   const selectionSignatureRef = useRef<string | null>(null);
 
   const applySelectionContext = useCallback(
@@ -1109,7 +1116,7 @@ export function PopupApp(): JSX.Element {
     );
   };
 
-  function renderReputation(response: ReputationResponse | null): JSX.Element {
+  const renderReputation = (response: ReputationResponse | null): JSX.Element => {
     if (!response) {
       return <p className="empty-state">Run a lookup to see reputation insights.</p>;
     }
@@ -1302,7 +1309,7 @@ export function PopupApp(): JSX.Element {
         </div>
       </section>
     );
-  }
+  };
 
   const renderInsights = () => (
     <>
@@ -1447,8 +1454,69 @@ export function PopupApp(): JSX.Element {
         </section>
       ) : null}
 
+      {mode === 'result' && reputation && (
+        <div className="result-container">
+          <div className="header">
+            <h2>{lookupQuery}</h2>
+            <button 
+              className="edit-btn"
+              onClick={() => setMode('query')}
+            >
+              <EditIcon size={16} /> Edit Search
+            </button>
+          </div>
+          
+          <div className="reputation-badge">
+            <div className="score">{reputation.score}</div>
+            <div className="status">{reputation.status}</div>
+          </div>
+          
+          <div className="explanation">
+            <h3>Reputation Breakdown</h3>
+            <ul>
+              {explainReputation(reputation, reputationSignals).map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
     </>
   );
+
+  const renderResult = () => {
+    if (mode === 'query') {
+      return renderInsights();
+    } else {
+      return (
+        <div className="result-container">
+          <div className="header">
+            <h2>{lookupQuery}</h2>
+            <button 
+              className="edit-btn"
+              onClick={() => setMode('query')}
+            >
+              <EditIcon size={16} /> Edit Search
+            </button>
+          </div>
+          
+          <div className="reputation-badge">
+            <div className="score">{reputation.score}</div>
+            <div className="status">{reputation.status}</div>
+          </div>
+          
+          <div className="explanation">
+            <h3>Reputation Breakdown</h3>
+            <ul>
+              {explainReputation(reputation, reputationSignals).map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      );
+    }
+  };
 
   return (
     <div className="popup-container">
@@ -1477,7 +1545,7 @@ export function PopupApp(): JSX.Element {
         </div>
       </header>
 
-      <main className={`view-${viewMode}`}>{viewMode === 'insights' ? renderInsights() : renderAdvancedSettings()}</main>
+      <main className={`view-${viewMode}`}>{viewMode === 'insights' ? renderResult() : renderAdvancedSettings()}</main>
     </div>
   );
 }
