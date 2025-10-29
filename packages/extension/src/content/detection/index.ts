@@ -3,10 +3,29 @@ import type { DetectedContactSnapshot, ExtensionResponseMessage, RegisterDetecte
 import { throttle } from '../../shared/throttle';
 import { safeSendMessage } from '../../shared/messaging';
 
-const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const PHONE_REGEX = /(?:(?:\+?\d{1,3}[ \-.]?)?(?:\(\d{1,4}\)[ \-.]?)?\d{1,4}(?:[ \-.]\d{2,4}){2,4})/g;
+// Enhanced regex patterns
+const EMAIL_REGEX = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi;
+const PHONE_REGEX = /(?:\+?1[-.\s]?)?(?:\(?\d{3}\)?[-.\s]?)?\d{3}[-.\s]?\d{4}\b/g;
+
+// Blacklist for common false positives
+const EMAIL_BLACKLIST = new Set([
+  'example@example.com',
+  'test@test.com',
+  'noreply@',
+  'no-reply@',
+  'donotreply@'
+]);
+
+const PHONE_BLACKLIST_PATTERNS = [
+  /^0+$/,           // All zeros
+  /^1{7,}$/,        // All ones
+  /^1234567/,       // Sequential
+  /^555-?1212$/,    // Fake directory assistance
+  /^867-?5309$/     // Jenny's number
+];
 
 let detectionEnabled = false;
+let lastSnapshot: DetectedContactSnapshot | null = null;
 
 const dispatchDetection = throttle(() => {
   if (!detectionEnabled) {
@@ -14,6 +33,13 @@ const dispatchDetection = throttle(() => {
   }
 
   const snapshot = collectSnapshot();
+  
+  // Only dispatch if snapshot has changed
+  if (!hasSnapshotChanged(lastSnapshot, snapshot)) {
+    return;
+  }
+
+  lastSnapshot = snapshot;
 
   const message: RegisterDetectedContactsMessage = {
     action: 'registerDetectedContacts',
@@ -26,13 +52,31 @@ const dispatchDetection = throttle(() => {
   safeSendMessage(message);
 }, 2000);
 
-const observer = new MutationObserver(() => dispatchDetection());
+const observer = new MutationObserver((mutations) => {
+  // Filter out irrelevant mutations
+  const hasRelevantChanges = mutations.some(mutation => {
+    if (mutation.type === 'characterData') {
+      return true;
+    }
+    if (mutation.type === 'childList') {
+      return mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0;
+    }
+    return false;
+  });
+
+  if (hasRelevantChanges) {
+    dispatchDetection();
+  }
+});
 
 function startObserving(): void {
   observer.observe(document.body ?? document.documentElement, {
     childList: true,
     subtree: true,
-    characterData: true
+    characterData: true,
+    // Optimize: ignore attributes and style changes
+    attributes: false,
+    attributeOldValue: false
   });
 }
 
@@ -42,7 +86,9 @@ function initialize(): void {
       return;
     }
 
-    enableDetection();
+    if (response?.success && response.settings?.detection?.enabled) {
+      enableDetection();
+    }
   });
 }
 
@@ -52,6 +98,7 @@ function enableDetection(): void {
   }
 
   detectionEnabled = true;
+  lastSnapshot = null;
   if (observer.takeRecords) {
     observer.takeRecords();
   }
@@ -65,6 +112,7 @@ function disableDetection(): void {
   }
 
   detectionEnabled = false;
+  lastSnapshot = null;
   observer.disconnect();
 }
 
@@ -73,10 +121,14 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): 
     return;
   }
 
-  const payload = message as { type?: string; action?: string; settings?: { consent?: { search?: boolean } } };
+  const payload = message as { 
+    type?: string; 
+    action?: string; 
+    settings?: { detection?: { enabled?: boolean } } 
+  };
 
   if (payload.type === 'venmail-settings-updated') {
-    if (payload.settings?.consent?.search) {
+    if (payload.settings?.detection?.enabled) {
       enableDetection();
     } else {
       disableDetection();
@@ -102,6 +154,35 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse): 
   }
 });
 
+function hasSnapshotChanged(prev: DetectedContactSnapshot | null, next: DetectedContactSnapshot): boolean {
+  if (!prev) {
+    return true;
+  }
+
+  if (prev.url !== next.url) {
+    return true;
+  }
+
+  if (prev.contacts.length !== next.contacts.length) {
+    return true;
+  }
+
+  const prevSet = new Set(prev.contacts.map(c => `${c.type}:${c.value}`));
+  const nextSet = new Set(next.contacts.map(c => `${c.type}:${c.value}`));
+
+  if (prevSet.size !== nextSet.size) {
+    return true;
+  }
+
+  for (const key of nextSet) {
+    if (!prevSet.has(key)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function collectSelectionContext(): SelectionContext | undefined {
   const selection = window.getSelection?.();
   if (!selection || selection.rangeCount === 0) {
@@ -116,8 +197,8 @@ function collectSelectionContext(): SelectionContext | undefined {
   const range = selection.getRangeAt(0).cloneRange();
   const surroundingText = extractSurroundingText(range);
 
-  const emails = matchRegex(selectedText, EMAIL_REGEX);
-  const phones = matchRegex(selectedText, PHONE_REGEX).map((value) => sanitizePhone(value) ?? '').filter(Boolean) as string[];
+  const emails = extractAndValidateEmails(selectedText);
+  const phones = extractAndValidatePhones(selectedText);
   const signatureBlock = detectSignatureBlock(surroundingText ?? selectedText);
   const keyPhrases = extractKeyPhrases(surroundingText ?? selectedText, selectedText);
 
@@ -149,22 +230,123 @@ function extractSurroundingText(range: Range): string | undefined {
   return fallback ? truncateText(fallback, 600) : undefined;
 }
 
+function extractAndValidateEmails(source: string): string[] {
+  const matches = matchRegex(source, EMAIL_REGEX);
+  const validated: string[] = [];
+
+  for (const email of matches) {
+    const normalized = email.toLowerCase().trim();
+    
+    // Skip blacklisted emails
+    if (EMAIL_BLACKLIST.has(normalized)) {
+      continue;
+    }
+
+    // Skip common false positives
+    if (normalized.includes('noreply') || normalized.includes('no-reply')) {
+      continue;
+    }
+
+    // Validate email structure more strictly
+    if (!isValidEmail(normalized)) {
+      continue;
+    }
+
+    validated.push(normalized);
+  }
+
+  return Array.from(new Set(validated));
+}
+
+function isValidEmail(email: string): boolean {
+  // More strict validation
+  const parts = email.split('@');
+  if (parts.length !== 2) {
+    return false;
+  }
+
+  const [local, domain] = parts;
+  
+  // Local part checks
+  if (!local || local.length > 64) {
+    return false;
+  }
+
+  // Domain checks
+  if (!domain || domain.length > 255) {
+    return false;
+  }
+
+  const domainParts = domain.split('.');
+  if (domainParts.length < 2) {
+    return false;
+  }
+
+  // TLD must be at least 2 characters
+  const tld = domainParts[domainParts.length - 1];
+  if (!tld || tld.length < 2) {
+    return false;
+  }
+
+  return true;
+}
+
+function extractAndValidatePhones(source: string): string[] {
+  const matches = matchRegex(source, PHONE_REGEX);
+  const validated: string[] = [];
+
+  for (const phone of matches) {
+    const sanitized = sanitizePhone(phone);
+    if (!sanitized) {
+      continue;
+    }
+
+    // Check against blacklist patterns
+    const digitsOnly = sanitized.replace(/\D/g, '');
+    const isBlacklisted = PHONE_BLACKLIST_PATTERNS.some(pattern => pattern.test(digitsOnly));
+    
+    if (isBlacklisted) {
+      continue;
+    }
+
+    validated.push(sanitized);
+  }
+
+  return Array.from(new Set(validated));
+}
+
 function matchRegex(source: string, regex: RegExp): string[] {
   const clone = new RegExp(regex.source, regex.flags.includes('g') ? regex.flags : `${regex.flags}g`);
   const matches: string[] = [];
   let result: RegExpExecArray | null;
+  
   while ((result = clone.exec(source)) !== null) {
     if (result[0]) {
       matches.push(result[0]);
     }
   }
-  return Array.from(new Set(matches));
+  
+  return matches;
 }
 
 function detectSignatureBlock(text: string): string | null {
   const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-  const signatureHints = ['best regards', 'kind regards', 'cheers', 'sincerely', 'thanks,', 'thank you'];
-  const startIndex = lines.findIndex((line) => signatureHints.some((hint) => line.toLowerCase().startsWith(hint)));
+  const signatureHints = [
+    'best regards',
+    'kind regards', 
+    'regards',
+    'cheers',
+    'sincerely',
+    'thanks,',
+    'thank you',
+    'best,',
+    'warmly',
+    'respectfully'
+  ];
+  
+  const startIndex = lines.findIndex((line) => 
+    signatureHints.some((hint) => line.toLowerCase().startsWith(hint))
+  );
 
   if (startIndex === -1) {
     return null;
@@ -556,37 +738,77 @@ initialize();
 
 function collectSnapshot(): DetectedContactSnapshot {
   const contacts = new Map<string, { type: 'email' | 'phone'; context?: string }>();
+  const processedNodes = new Set<Node>();
 
-  const walker = document.createTreeWalker(document.body ?? document.documentElement, NodeFilter.SHOW_TEXT);
+  // Use a more efficient approach: collect all text nodes first
+  const textNodes: Node[] = [];
+  const walker = document.createTreeWalker(
+    document.body ?? document.documentElement, 
+    NodeFilter.SHOW_TEXT,
+    {
+      acceptNode: (node) => {
+        // Skip script, style, and hidden elements
+        if (node.parentElement) {
+          const style = window.getComputedStyle(node.parentElement);
+          if (style.display === 'none' || style.visibility === 'hidden') {
+            return NodeFilter.FILTER_REJECT;
+          }
+          
+          const tag = node.parentElement.tagName.toUpperCase();
+          if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') {
+            return NodeFilter.FILTER_REJECT;
+          }
+        }
+        
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    }
+  );
+
   let node: Node | null = walker.nextNode();
-
   while (node) {
-    const text = node.textContent ?? '';
+    textNodes.push(node);
+    node = walker.nextNode();
+  }
+
+  // Process text nodes in batches
+  for (const textNode of textNodes) {
+    if (processedNodes.has(textNode)) {
+      continue;
+    }
+    processedNodes.add(textNode);
+
+    const text = textNode.textContent ?? '';
     if (!text || text.trim().length === 0) {
-      node = walker.nextNode();
       continue;
     }
 
-    const emailMatches = text.match(EMAIL_REGEX);
-    if (emailMatches) {
-      for (const email of emailMatches) {
-        if (!contacts.has(email)) {
-          contacts.set(email, { type: 'email', context: extractContext(node) });
-        }
+    // Extract emails
+    const emailMatches = extractAndValidateEmails(text);
+    for (const email of emailMatches) {
+      if (!contacts.has(email)) {
+        contacts.set(email, { 
+          type: 'email', 
+          context: extractContext(textNode) 
+        });
       }
     }
 
-    const phoneMatches = text.match(PHONE_REGEX);
-    if (phoneMatches) {
-      for (const phone of phoneMatches) {
-        const normalized = sanitizePhone(phone);
-        if (normalized && !contacts.has(normalized)) {
-          contacts.set(normalized, { type: 'phone', context: extractContext(node) });
-        }
+    // Extract phones
+    const phoneMatches = extractAndValidatePhones(text);
+    for (const phone of phoneMatches) {
+      if (!contacts.has(phone)) {
+        contacts.set(phone, { 
+          type: 'phone', 
+          context: extractContext(textNode) 
+        });
       }
     }
 
-    node = walker.nextNode();
+    // Limit total contacts to prevent performance issues
+    if (contacts.size >= 50) {
+      break;
+    }
   }
 
   return {
@@ -608,12 +830,12 @@ function extractContext(node: Node): string | undefined {
   while (parent && depth < 4) {
     if (parent instanceof HTMLElement) {
       const ariaLabel = parent.getAttribute('aria-label');
-      if (ariaLabel) {
+      if (ariaLabel && ariaLabel.length <= 200) {
         return ariaLabel;
       }
 
       const text = parent.innerText?.trim();
-      if (text && text.length <= 200) {
+      if (text && text.length > 10 && text.length <= 200) {
         return text;
       }
     }
@@ -627,7 +849,14 @@ function extractContext(node: Node): string | undefined {
 
 function sanitizePhone(raw: string): string | null {
   const digits = raw.replace(/[^0-9+]/g, '');
-  if (digits.length < 7) {
+  
+  // Must have at least 7 digits
+  if (digits.replace(/\+/g, '').length < 7) {
+    return null;
+  }
+
+  // Max reasonable length (international format)
+  if (digits.length > 15) {
     return null;
   }
 
@@ -635,8 +864,14 @@ function sanitizePhone(raw: string): string | null {
 }
 
 function normalizeLocalPhone(value: string): string {
+  // US/Canada number
   if (value.length === 10) {
     return `+1${value}`;
+  }
+
+  // Already has country code
+  if (value.length >= 11) {
+    return `+${value}`;
   }
 
   return `+${value}`;

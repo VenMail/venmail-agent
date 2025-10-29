@@ -61,13 +61,25 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
     return;
   }
 
+  // FIX 1: Open popup after triggering lookup
   void handleMessage(
     {
       action: 'fetchContactInfo',
       name: info.selectionText.trim()
     },
     tab?.id
-  );
+  ).then(() => {
+    // Open the popup programmatically
+    chrome.action.openPopup().catch(() => {
+      // If we can't open popup, at least show a notification
+      chrome.notifications?.create({
+        type: 'basic',
+        iconUrl: 'icon-128.png',  
+        title: 'Venmail Lookup',
+        message: `Looking up: ${info?.selectionText?.trim()}`
+      });
+    });
+  });
 });
 
 chrome.tabs.onRemoved.addListener((tabId) => {
