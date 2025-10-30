@@ -7,6 +7,7 @@ import type {
   FetchContactInfoMessage,
   LookupProgressUpdate,
   ReputationResponse,
+  ScrapeTaskId,
   SaveSettingsMessage,
   SelectionContext
 } from '@venmail/shared';
@@ -15,7 +16,20 @@ import './popupApp.css';
 import { DEFAULT_SETTINGS } from '../shared/settings';
 import { safeSendMessage, safeSendTabsMessage } from '../shared/messaging';
 import { ReputationBreakdown, ReputationSignals, buildRequestKey, explainReputation } from '@venmail/shared';
-import { EditIcon } from 'lucide-react';
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock,
+  EditIcon,
+  ExternalLink,
+  Link2,
+  Loader2,
+  Mail,
+  Phone
+} from 'lucide-react';
+import { DetectionSnapshot } from './components/DetectionSnapshot';
+import { InsightSummary } from './components/InsightSummary';
+import { SearchView } from './components/SearchView';
 
 type StatusVariant = 'info' | 'success' | 'warning' | 'error';
 
@@ -31,43 +45,6 @@ type LookupHistoryEntry = {
 };
 
 const LOOKUP_HISTORY_KEY = 'venmail_lookup_history';
-
-function renderDetectionSnapshot(
-  snapshot: DetectedContactSnapshot | null,
-  onLookup: (value: string, type: 'email' | 'phone') => void
-): JSX.Element {
-  if (!snapshot || snapshot.contacts.length === 0) {
-    return <p className="empty-state">No detected contacts yet.</p>;
-  }
-
-  return (
-    <div className="detection-list">
-      <p className="detection-meta">
-        {snapshot.url ? (
-          <>
-            from{' '}
-            <a href={snapshot.url} target="_blank" rel="noreferrer">
-              {snapshot.title ?? snapshot.url}
-            </a>
-          </>
-        ) : (
-          'From this page'
-        )}
-      </p>
-      <ul>
-        {snapshot.contacts.map((contact) => (
-          <li key={`${contact.type}:${contact.value}`}>
-            <span className="contact-value">{contact.value}</span>
-            <button type="button" onClick={() => onLookup(contact.value, contact.type)}>
-              Lookup
-            </button>
-            {contact.context ? <span className="contact-context">{contact.context}</span> : null}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 function renderMapsInsights(
   response: ReputationResponse | null,
@@ -186,7 +163,6 @@ interface LookupFormState {
 
 type ViewMode = 'results' | 'search' | 'detection' | 'advanced';
 type PopupMode = 'query' | 'result';
-
 type FormErrors = Partial<Record<keyof LookupFormState, string>>;
 
 const defaultStatus: StatusMessage = { label: 'Idle', variant: 'info' };
@@ -289,6 +265,36 @@ function deriveNameCandidate(selection: SelectionContext): string | undefined {
   }
 
   return undefined;
+}
+
+function extractHostname(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const url = value.includes('://') ? new URL(value) : new URL(`https://${value}`);
+    return url.hostname.replace(/^www\./, '').toLowerCase();
+  } catch {
+    return value.replace(/^www\./, '').toLowerCase();
+  }
+}
+
+function normalizeComparableName(value?: string | null): string | null {
+  if (!value) {
+    return null;
+  }
+  return value.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function formatTaskName(taskId?: ScrapeTaskId): string {
+  if (!taskId) {
+    return 'Task';
+  }
+  return taskId
+    .split('-')
+    .map((part) => (part.length ? part[0]?.toUpperCase() + part.slice(1) : part))
+    .join(' ');
 }
 
 function buildSelectionSignature(selection?: SelectionContext | null): string | null {
@@ -813,12 +819,25 @@ export function PopupApp(): JSX.Element {
 
   const sanitizeNumberInput = (value: string): string => value.replace(/[^0-9]/g, '');
 
+  const progressHistory = useMemo(() => {
+    const byLookup = new Map<string, LookupProgressUpdate[]>();
+    for (const update of progressUpdates) {
+      const bucket = byLookup.get(update.lookupKey) ?? [];
+      bucket.push(update);
+      byLookup.set(update.lookupKey, bucket);
+    }
+    for (const bucket of byLookup.values()) {
+      bucket.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    }
+    return byLookup;
+  }, [progressUpdates]);
+
   const activeProgress = useMemo(() => {
     if (!activeLookupKey) {
       return [] as LookupProgressUpdate[];
     }
-    return progressUpdates.filter((entry) => entry.lookupKey === activeLookupKey);
-  }, [activeLookupKey, progressUpdates]);
+    return progressHistory.get(activeLookupKey) ?? [];
+  }, [activeLookupKey, progressHistory]);
 
   const updateFormState = (updater: (prev: FormState) => FormState): void => {
     setFormState((prev) => {
@@ -1344,147 +1363,25 @@ export function PopupApp(): JSX.Element {
     );
   };
 
-  const renderSearchTab = (): JSX.Element => {
-    const stages: LookupProgressUpdate[] = isFetching
-      ? activeProgress.length
-        ? activeProgress
-        : activeLookupKey
-        ? [
-            {
-              type: 'venmail-lookup-progress',
-              stage: 'Preparing lookup…',
-              timestamp: new Date().toISOString(),
-              lookupKey: activeLookupKey
-            }
-          ]
-        : []
-      : [];
-
-    return (
-      <div className="tab-scroll">
-        <section className="lookup-card">
-          <header className="lookup-card__header">
-            <div>
-              <h2>Smart lookup</h2>
-              <p>Context-aware fields pull from page selection automatically.</p>
-            </div>
-            <button
-              type="button"
-              className="ghost-button"
-              onClick={() => (activeTabId ? requestSelectionFromTab(activeTabId) : undefined)}
-            >
-              Refresh selection
-            </button>
-          </header>
-
-          <div className="lookup-card__body">
-            <aside className="callout info">
-              <strong>Tip:</strong> Highlight a name or email on the page and relaunch the popup to prefill the form instantly.
-            </aside>
-
-            <form className="lookup-form" onSubmit={handleLookupSubmit}>
-              <div className="lookup-grid lookup-grid--two">
-                <div className="field">
-                  <label className="field__label">Name</label>
-                  <input
-                    type="text"
-                    autoComplete="name"
-                    placeholder="e.g. Jane Doe"
-                    value={lookupForm.name}
-                    onChange={(event) => handleLookupFieldChange('name', event.currentTarget.value)}
-                  />
-                  {lookupErrors.name && <span className="field__error">{lookupErrors.name}</span>}
-                </div>
-
-                <div className="field">
-                  <label className="field__label">Email</label>
-                  <input
-                    type="email"
-                    autoComplete="email"
-                    placeholder="jane@example.com"
-                    value={lookupForm.email}
-                    onChange={(event) => handleLookupFieldChange('email', event.currentTarget.value)}
-                  />
-                  {lookupErrors.email && <span className="field__error">{lookupErrors.email}</span>}
-                </div>
-
-                <div className="field">
-                  <label className="field__label">Domain</label>
-                  <input
-                    type="text"
-                    inputMode="url"
-                    placeholder="example.com"
-                    value={lookupForm.domain}
-                    onChange={(event) => handleLookupFieldChange('domain', event.currentTarget.value)}
-                  />
-                  {lookupErrors.domain && <span className="field__error">{lookupErrors.domain}</span>}
-                </div>
-
-                <div className="field">
-                  <label className="field__label">Company</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Example Inc."
-                    value={lookupForm.company}
-                    onChange={(event) => handleLookupFieldChange('company', event.currentTarget.value)}
-                  />
-                </div>
-              </div>
-
-              <footer className="lookup-actions">
-                <button type="submit" disabled={isFetching}>
-                  {isFetching ? 'Gathering insights…' : 'Reveal profile insights'}
-                </button>
-
-                <div className="lookup-status">
-                  {contextLookup?.updatedAt ? (
-                    <div className="recent-lookup">
-                      <span className="recent-lookup__label">Last request</span>
-                      <div className="recent-lookup__meta">
-                        <span>{new Date(contextLookup.updatedAt).toLocaleTimeString()}</span>
-                        {contextLookup.error ? <span className="recent-lookup__error">{contextLookup.error}</span> : <span>Ready</span>}
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="lookup-hint">Run a search to populate insights below.</p>
-                  )}
-                </div>
-              </footer>
-            </form>
-          </div>
-        </section>
-
-        <section className="insights-card insights-card--hint">
-          <h2>What happens next</h2>
-          <p>
-            Submit the form and Venmail will collect SERP, Maps, profile, and contact signals automatically. Jump to
-            <strong> Results</strong> to watch the progress.
-          </p>
-        </section>
-
-        {stages.length ? (
-          <section className="insights-card lookup-progress">
-            <h2>Gathering signals…</h2>
-            <ul>
-              {stages.map((entry) => (
-                <li key={`${entry.lookupKey}-${entry.timestamp}`}>
-                  <strong>{entry.stage}</strong>
-                  {entry.taskId ? <span className="task-tag">{entry.taskId}</span> : null}
-                  {entry.notes?.length ? <p>{entry.notes.join(' ')}</p> : null}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-      </div>
-    );
-  };
+  const renderSearchTab = (): JSX.Element => (
+    <SearchView
+      lookupForm={lookupForm}
+      lookupErrors={lookupErrors}
+      isFetching={isFetching}
+      onFieldChange={handleLookupFieldChange}
+      onSubmit={handleLookupSubmit}
+      onRefreshSelection={() => (activeTabId ? requestSelectionFromTab(activeTabId) : undefined)}
+      contextLookup={contextLookup}
+      activeProgress={activeProgress}
+      activeLookupKey={activeLookupKey}
+    />
+  );
 
   const renderDetectionTab = (): JSX.Element => (
     <div className="tab-scroll">
       <section className="insights-card">
         <h2>Detection snapshot</h2>
-        {renderDetectionSnapshot(detectionSnapshot, handleDetectionLookup)}
+        <DetectionSnapshot snapshot={detectionSnapshot} onLookup={handleDetectionLookup} />
       </section>
     </div>
   );
@@ -1556,7 +1453,7 @@ export function PopupApp(): JSX.Element {
 
         <section className="insights-card">
           <h3>Detected contacts</h3>
-          {renderDetectionSnapshot(detectionSnapshot, handleDetectionLookup)}
+          <DetectionSnapshot snapshot={detectionSnapshot} onLookup={handleDetectionLookup} />
         </section>
       </div>
     );
@@ -1662,109 +1559,4 @@ function parseOptionalNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function InsightSummary({ response }: { response: ReputationResponse }): JSX.Element {
-  const { additionalData, reputation, companyInfo, socialProfiles } = response;
-  const phoneNumbers = additionalData.phoneNumbers ?? [];
-  const locations = additionalData.locations ?? [];
-  const socialEntries = Object.entries(socialProfiles).filter(([, url]) => Boolean(url)) as [string, string][];
-  const reputationSources = reputation.sources.slice(0, 4);
-  const quickStats = [
-    {
-      label: 'Reputation score',
-      value: reputation.score.toString(),
-      detail: reputation.status
-    },
-    {
-      label: 'Email status',
-      value: additionalData.verifiedEmail ? 'Verified' : 'Unverified',
-      detail: additionalData.verifiedEmail ? 'Delivery safe' : 'Needs validation'
-    },
-    {
-      label: 'Phone signals',
-      value: phoneNumbers.length > 0 ? phoneNumbers[0] : 'Not surfaced',
-      detail: phoneNumbers.length > 1 ? `+${phoneNumbers.length - 1} more` : undefined
-    },
-    {
-      label: 'Geo presence',
-      value: locations.length > 0 ? locations[0] : 'Not detected',
-      detail: locations.length > 1 ? `+${locations.length - 1} regions` : undefined
-    }
-  ];
 
-  return (
-    <section className="insight-card insight-summary">
-      <div className="insight-card__header">
-        <h2>Insight summary</h2>
-        <span className="tag">Updated {response.generatedAt ? new Date(response.generatedAt).toLocaleTimeString() : 'moments ago'}</span>
-      </div>
-
-      <div className="insight-highlights">
-        {quickStats.map((item) => (
-          <div key={item.label} className="highlight-card">
-            <span className="highlight-label">{item.label}</span>
-            <span className="highlight-value">{item.value}</span>
-            {item.detail && <span className="highlight-detail">{item.detail}</span>}
-          </div>
-        ))}
-      </div>
-
-      <div className="insight-body">
-        <div className="insight-section">
-          <h3>Company profile</h3>
-          <dl className="insight-list">
-            <div>
-              <dt>Name</dt>
-              <dd>{companyInfo.name || 'Unavailable'}</dd>
-            </div>
-            <div>
-              <dt>Website</dt>
-              <dd>{companyInfo.website ? <a href={companyInfo.website} target="_blank" rel="noreferrer">{companyInfo.website}</a> : 'Unavailable'}</dd>
-            </div>
-            {companyInfo.industry && (
-              <div>
-                <dt>Industry</dt>
-                <dd>{companyInfo.industry}</dd>
-              </div>
-            )}
-            {companyInfo.size && (
-              <div>
-                <dt>Team size</dt>
-                <dd>{companyInfo.size}</dd>
-              </div>
-            )}
-          </dl>
-        </div>
-
-        <div className="insight-section">
-          <h3>Digital presence</h3>
-          {socialEntries.length > 0 ? (
-            <ul className="insight-links">
-              {socialEntries.map(([platform, url]) => (
-                <li key={platform}>
-                  <a href={url} target="_blank" rel="noreferrer">
-                    {platform}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="insight-placeholder">No public profiles detected yet.</p>
-          )}
-        </div>
-
-        <div className="insight-section">
-          <h3>Signals referenced</h3>
-          {reputationSources.length > 0 ? (
-            <ul className="insight-pills">
-              {reputationSources.map((source) => (
-                <li key={source}>{source}</li>
-              ))}
-            </ul>
-          ) : (
-            <p className="insight-placeholder">Signals will appear here once gathered.</p>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
