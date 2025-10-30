@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { DetectionSnapshot } from './components/DetectionSnapshot';
 import { InsightSummary } from './components/InsightSummary';
+import { LookupProgressTimeline } from './components/LookupProgressTimeline';
 import { SearchView } from './components/SearchView';
 
 type StatusVariant = 'info' | 'success' | 'warning' | 'error';
@@ -1388,31 +1389,23 @@ export function PopupApp(): JSX.Element {
 
   const renderResultTab = (): JSX.Element => {
     if (isFetching) {
-      const stages: LookupProgressUpdate[] = activeProgress.length
-        ? activeProgress
-        : activeLookupKey
-        ? [
-            {
-              type: 'venmail-lookup-progress',
-              stage: 'Starting lookup…',
-              timestamp: new Date().toISOString(),
-              lookupKey: activeLookupKey
-            }
-          ]
-        : [];
+      const fallbackStage = activeLookupKey
+        ? {
+            type: 'venmail-lookup-progress' as const,
+            stage: 'Starting lookup…',
+            timestamp: new Date().toISOString(),
+            lookupKey: activeLookupKey
+          }
+        : null;
 
       return (
         <section className="insights-card lookup-progress">
           <h2>Lookup in progress</h2>
-          <ul>
-            {stages.map((entry) => (
-              <li key={`${entry.lookupKey}-${entry.timestamp}`}>
-                <strong>{entry.stage}</strong>
-                {entry.taskId ? <span className="task-tag">{entry.taskId}</span> : null}
-                {entry.notes?.length ? <p>{entry.notes.join(' ')}</p> : null}
-              </li>
-            ))}
-          </ul>
+          <LookupProgressTimeline
+            updates={activeProgress}
+            fallbackStage={fallbackStage}
+            emptyLabel="Awaiting task updates…"
+          />
         </section>
       );
     }

@@ -1,5 +1,6 @@
-import { FormEvent } from 'react';
+import { FormEvent, useMemo } from 'react';
 import type { ExtensionResponseMessage, LookupProgressUpdate } from '@venmail/shared';
+import { LookupProgressTimeline } from './LookupProgressTimeline';
 
 export type LookupFormShape = {
   name: string;
@@ -11,8 +12,6 @@ export type LookupFormShape = {
 export type LookupFormErrors = Partial<Record<keyof LookupFormShape, string>>;
 
 type ContextLookupState = NonNullable<ExtensionResponseMessage['contextLookup']>;
-
-type ContactChannelType = 'email' | 'phone';
 
 export interface SearchViewProps {
   lookupForm: LookupFormShape;
@@ -37,20 +36,19 @@ export function SearchView({
   activeProgress,
   activeLookupKey
 }: SearchViewProps): JSX.Element {
-  const stages: LookupProgressUpdate[] = isFetching
-    ? activeProgress.length
-      ? activeProgress
-      : activeLookupKey
-      ? [
-          {
-            type: 'venmail-lookup-progress',
-            stage: 'Preparing lookup…',
-            timestamp: new Date().toISOString(),
-            lookupKey: activeLookupKey
-          }
-        ]
-      : []
-    : [];
+  const updates: LookupProgressUpdate[] = isFetching ? activeProgress : [];
+  const fallbackStage = useMemo(() => {
+    if (!isFetching || !activeLookupKey || updates.length) {
+      return null;
+    }
+
+    return {
+      type: 'venmail-lookup-progress' as const,
+      stage: 'Preparing lookup…',
+      timestamp: new Date().toISOString(),
+      lookupKey: activeLookupKey
+    } satisfies LookupProgressUpdate;
+  }, [isFetching, activeLookupKey, updates.length]);
 
   return (
     <div className="tab-scroll">
@@ -154,18 +152,14 @@ export function SearchView({
         </p>
       </section>
 
-      {stages.length ? (
+      {isFetching || fallbackStage ? (
         <section className="insights-card lookup-progress">
           <h2>Gathering signals…</h2>
-          <ul>
-            {stages.map((entry) => (
-              <li key={`${entry.lookupKey}-${entry.timestamp}`}>
-                <strong>{entry.stage}</strong>
-                {entry.taskId ? <span className="task-tag">{entry.taskId}</span> : null}
-                {entry.notes?.length ? <p>{entry.notes.join(' ')}</p> : null}
-              </li>
-            ))}
-          </ul>
+          <LookupProgressTimeline
+            updates={updates}
+            fallbackStage={fallbackStage}
+            emptyLabel="Awaiting task updates…"
+          />
         </section>
       ) : null}
     </div>
