@@ -3,8 +3,7 @@ export type ScrapeTaskId =
   | 'maps-scan'
   | 'profile-scan'
   | 'contact-page-scan'
-  | 'email-verification'
-  | 'contactout-capture';
+  | 'venmail-lookup';
 
 export interface SearchResultHighlight {
   title: string;
@@ -56,16 +55,9 @@ export interface ExtensionSettings {
     };
   };
   fallbacks: {
-    hunter?: {
+    venmail?: {
       enabled: boolean;
       apiKey?: string;
-    };
-    contactOut?: {
-      enabled: boolean;
-      polling?: {
-        intervalMs?: number;
-        timeoutMs?: number;
-      };
     };
   };
   cacheTtlOverrides?: Partial<Record<ScrapeTaskId, number>>;
@@ -267,6 +259,7 @@ export interface ReputationResponse {
     locations?: string[];
     jobTitle?: string;
     verifiedEmail: boolean;
+    emailAddresses?: string[];
     notes?: string;
     searchHighlights?: SearchResultHighlight[];
     socialLinks?: Record<string, string>;

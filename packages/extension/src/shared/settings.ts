@@ -16,16 +16,9 @@ export const DEFAULT_SETTINGS: ExtensionSettings = {
     }
   },
   fallbacks: {
-    hunter: {
+    venmail: {
       enabled: false,
       apiKey: undefined
-    },
-    contactOut: {
-      enabled: true,
-      polling: {
-        intervalMs: 400,
-        timeoutMs: 12_000
-      }
     }
   },
   cacheTtlOverrides: {},
@@ -68,18 +61,9 @@ export function mergeSettings(
       }
     },
     fallbacks: {
-      hunter: {
-        enabled: override.fallbacks?.hunter?.enabled ?? base.fallbacks.hunter?.enabled ?? false,
-        apiKey: override.fallbacks?.hunter?.apiKey ?? base.fallbacks.hunter?.apiKey
-      },
-      contactOut: {
-        enabled: override.fallbacks?.contactOut?.enabled ?? base.fallbacks.contactOut?.enabled ?? false,
-        polling: {
-          intervalMs:
-            override.fallbacks?.contactOut?.polling?.intervalMs ?? base.fallbacks.contactOut?.polling?.intervalMs,
-          timeoutMs:
-            override.fallbacks?.contactOut?.polling?.timeoutMs ?? base.fallbacks.contactOut?.polling?.timeoutMs
-        }
+      venmail: {
+        enabled: override.fallbacks?.venmail?.enabled ?? base.fallbacks.venmail?.enabled ?? false,
+        apiKey: override.fallbacks?.venmail?.apiKey ?? base.fallbacks.venmail?.apiKey
       }
     },
     cacheTtlOverrides: {

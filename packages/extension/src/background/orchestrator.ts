@@ -67,8 +67,15 @@ export async function orchestrateLookup(
   const results: ScrapeResult[] = [];
   const taskTtls: number[] = [];
   const aggregatedNotes: string[] = [];
+  let emailResolved = false;
 
   for (const task of taskQueue) {
+    if (task === 'venmail-lookup' && emailResolved) {
+      emitProgress('task-skipped', task, ['Email already found from earlier tasks.']);
+      aggregatedNotes.push('venmail-lookup skipped – email already identified.');
+      continue;
+    }
+
     if (!isTaskEnabled(settings, task)) {
       continue;
     }
@@ -86,7 +93,9 @@ export async function orchestrateLookup(
     if (rateLimit > 0 && lastRun && now - lastRun < rateLimit) {
       if (cached?.payload) {
         emitProgress('task-cache-hit', task, ['Using cached result (rate limited).']);
-        results.push(markScrapeResult(task, cached.payload, ['Using cached result (rate limited).']));
+        const normalized = markScrapeResult(task, cached.payload, ['Using cached result (rate limited).']);
+        results.push(normalized);
+        emailResolved ||= resultHasEmail(normalized);
         continue;
       }
 
@@ -97,7 +106,9 @@ export async function orchestrateLookup(
 
     if (cached?.payload) {
       emitProgress('task-cache-hit', task, ['Using cached result.']);
-      results.push(markScrapeResult(task, cached.payload));
+      const normalized = markScrapeResult(task, cached.payload);
+      results.push(normalized);
+      emailResolved ||= resultHasEmail(normalized);
       continue;
     }
 
@@ -125,6 +136,7 @@ export async function orchestrateLookup(
 
       const normalized = markScrapeResult(task, scrape);
       results.push(normalized);
+      emailResolved ||= resultHasEmail(normalized);
       emitProgress('task-success', task, normalized.notes?.length ? normalized.notes : undefined);
 
       if (taskTtl && taskTtl > 0) {
@@ -214,12 +226,8 @@ function markScrapeResult(task: ScrapeTaskId, result: ScrapeTaskOutput, extraNot
 function buildTaskQueue(settings: ExtensionSettings): TaskOrder {
   const order: TaskOrder = ['serp-scan', 'maps-scan', 'profile-scan', 'contact-page-scan'];
 
-  if (settings.fallbacks?.contactOut?.enabled) {
-    order.push('contactout-capture');
-  }
-
-  if (settings.fallbacks?.hunter?.enabled && settings.fallbacks.hunter.apiKey) {
-    order.push('email-verification');
+  if (settings.fallbacks?.venmail?.enabled) {
+    order.push('venmail-lookup');
   }
 
   return Array.from(new Set(order));
@@ -227,10 +235,8 @@ function buildTaskQueue(settings: ExtensionSettings): TaskOrder {
 
 function isTaskEnabled(settings: ExtensionSettings, task: ScrapeTaskId): boolean {
   switch (task) {
-    case 'email-verification':
-      return Boolean(settings.fallbacks?.hunter?.enabled && settings.fallbacks.hunter.apiKey);
-    case 'contactout-capture':
-      return Boolean(settings.fallbacks?.contactOut?.enabled);
+    case 'venmail-lookup':
+      return Boolean(settings.fallbacks?.venmail?.enabled);
     case 'contact-page-scan':
       return settings.scraping.contact.enabled;
     case 'maps-scan':
@@ -249,4 +255,31 @@ function getTaskRateLimit(settings: ExtensionSettings, task: ScrapeTaskId): numb
 
 function getTaskCacheTtl(settings: ExtensionSettings, task: ScrapeTaskId): number | undefined {
   return settings.cacheTtlOverrides?.[task];
+}
+
+function resultHasEmail(result: ScrapeResult): boolean {
+  const emails = collectEmails(result);
+  return emails.length > 0 || Boolean(result.signals?.emailVerified);
+}
+
+function collectEmails(result: ScrapeResult): string[] {
+  const collected = new Set<string>();
+
+  const direct = result.additionalData?.emailAddresses ?? [];
+  for (const email of direct) {
+    if (email) {
+      collected.add(email.toLowerCase());
+    }
+  }
+
+  const channels = result.additionalData?.contactChannels ?? [];
+  for (const channel of channels ?? []) {
+    for (const email of channel.emails ?? []) {
+      if (email) {
+        collected.add(email.toLowerCase());
+      }
+    }
+  }
+
+  return Array.from(collected);
 }

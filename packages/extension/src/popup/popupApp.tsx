@@ -168,20 +168,14 @@ interface FormState {
     timeoutMs: string;
   };
   fallbacks: {
-    hunter: {
+    venmail: {
       enabled: boolean;
       apiKey: string;
-    };
-    contactOut: {
-      enabled: boolean;
-      intervalMs: string;
-      timeoutMs: string;
     };
   };
 }
 
 type ScrapeTaskKey = keyof FormState['scraping'];
-type FallbackKey = keyof FormState['fallbacks'];
 
 interface LookupFormState {
   name: string;
@@ -892,41 +886,27 @@ export function PopupApp(): JSX.Element {
     }));
   };
 
-  const handleFallbackToggle = (fallback: FallbackKey) => {
+  const handleVenmailToggle = () => {
     updateFormState((prev) => ({
       ...prev,
       fallbacks: {
         ...prev.fallbacks,
-        [fallback]: {
-          ...prev.fallbacks[fallback],
-          enabled: !prev.fallbacks[fallback].enabled
+        venmail: {
+          ...prev.fallbacks.venmail,
+          enabled: !prev.fallbacks.venmail.enabled
         }
       }
     }));
   };
 
-  const handleFallbackHunterApiKeyChange = (value: string) => {
+  const handleVenmailApiKeyChange = (value: string) => {
     updateFormState((prev) => ({
       ...prev,
       fallbacks: {
         ...prev.fallbacks,
-        hunter: {
-          ...prev.fallbacks.hunter,
+        venmail: {
+          ...prev.fallbacks.venmail,
           apiKey: value
-        }
-      }
-    }));
-  };
-
-  const handleFallbackPollingChange = (field: 'intervalMs' | 'timeoutMs', value: string) => {
-    const sanitized = sanitizeNumberInput(value);
-    updateFormState((prev) => ({
-      ...prev,
-      fallbacks: {
-        ...prev.fallbacks,
-        contactOut: {
-          ...prev.fallbacks.contactOut,
-          [field]: sanitized
         }
       }
     }));
@@ -967,16 +947,9 @@ export function PopupApp(): JSX.Element {
           }
         },
         fallbacks: {
-          hunter: {
-            enabled: formState.fallbacks.hunter.enabled,
-            apiKey: formState.fallbacks.hunter.apiKey.trim() || undefined
-          },
-          contactOut: {
-            enabled: formState.fallbacks.contactOut.enabled,
-            polling: {
-              intervalMs: parseOptionalNumber(formState.fallbacks.contactOut.intervalMs),
-              timeoutMs: parseOptionalNumber(formState.fallbacks.contactOut.timeoutMs)
-            }
+          venmail: {
+            enabled: formState.fallbacks.venmail.enabled,
+            apiKey: formState.fallbacks.venmail.apiKey.trim() || undefined
           }
         }
       }
@@ -1098,57 +1071,25 @@ export function PopupApp(): JSX.Element {
               <label>
                 <input
                   type="checkbox"
-                  checked={formState.fallbacks.hunter.enabled}
-                  onChange={() => handleFallbackToggle('hunter')}
+                  checked={formState.fallbacks.venmail.enabled}
+                  onChange={handleVenmailToggle}
                 />
-                Allow Hunter.io verification
+                Enable Venmail lookup fallback
               </label>
             </div>
             <label className="field">
-              <span>Hunter.io API key</span>
+              <span>Venmail API key</span>
               <input
                 type="password"
                 placeholder="•••••••"
-                value={formState.fallbacks.hunter.apiKey}
-                onChange={(event) => handleFallbackHunterApiKeyChange(event.currentTarget.value)}
-                disabled={!formState.fallbacks.hunter.enabled}
+                value={formState.fallbacks.venmail.apiKey}
+                onChange={(event) => handleVenmailApiKeyChange(event.currentTarget.value)}
+                disabled={!formState.fallbacks.venmail.enabled}
               />
             </label>
-
-            <div className="field checkbox">
-              <label>
-                <input
-                  type="checkbox"
-                  checked={formState.fallbacks.contactOut.enabled}
-                  onChange={() => handleFallbackToggle('contactOut')}
-                />
-                Enable ContactOut capture
-              </label>
-            </div>
-            <div className="polling-grid">
-              <label className="field">
-                <span>Polling interval (ms)</span>
-                <input
-                  type="number"
-                  min={100}
-                  step={100}
-                  value={formState.fallbacks.contactOut.intervalMs}
-                  onChange={(event) => handleFallbackPollingChange('intervalMs', event.currentTarget.value)}
-                  disabled={!formState.fallbacks.contactOut.enabled}
-                />
-              </label>
-              <label className="field">
-                <span>Timeout (ms)</span>
-                <input
-                  type="number"
-                  min={1000}
-                  step={500}
-                  value={formState.fallbacks.contactOut.timeoutMs}
-                  onChange={(event) => handleFallbackPollingChange('timeoutMs', event.currentTarget.value)}
-                  disabled={!formState.fallbacks.contactOut.enabled}
-                />
-              </label>
-            </div>
+            <p className="settings-hint">
+              Venmail activates only after standard scraping tasks and the ContactOut keyword search fail to surface an email.
+            </p>
           </div>
         </div>
 
@@ -1684,6 +1625,10 @@ function mapSettingsToForm(settings: ExtensionSettings): FormState {
     cacheTtlMs: toNumberString(task.cacheTtlMs)
   });
 
+  const defaultVenmailFallback = DEFAULT_SETTINGS.fallbacks
+    ? DEFAULT_SETTINGS.fallbacks.venmail ?? { enabled: false, apiKey: undefined }
+    : { enabled: false, apiKey: undefined };
+
   return {
     apiBaseUrl: settings.apiBaseUrl ?? '',
     scraping: {
@@ -1704,20 +1649,9 @@ function mapSettingsToForm(settings: ExtensionSettings): FormState {
       )
     },
     fallbacks: {
-      hunter: {
-        enabled: settings.fallbacks.hunter?.enabled ?? false,
-        apiKey: settings.fallbacks.hunter?.apiKey ?? ''
-      },
-      contactOut: {
-        enabled: settings.fallbacks.contactOut?.enabled ?? false,
-        intervalMs: toNumberString(
-          settings.fallbacks.contactOut?.polling?.intervalMs,
-          DEFAULT_SETTINGS.fallbacks.contactOut?.polling?.intervalMs
-        ),
-        timeoutMs: toNumberString(
-          settings.fallbacks.contactOut?.polling?.timeoutMs,
-          DEFAULT_SETTINGS.fallbacks.contactOut?.polling?.timeoutMs
-        )
+      venmail: {
+        enabled: settings.fallbacks.venmail?.enabled ?? defaultVenmailFallback.enabled ?? false,
+        apiKey: settings.fallbacks.venmail?.apiKey ?? defaultVenmailFallback.apiKey ?? ''
       }
     }
   };

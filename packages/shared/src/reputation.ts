@@ -26,7 +26,7 @@ export const REPUTATION_WEIGHTS = {
 } as const;
 
 export const SIGNAL_TASK_SOURCES: Partial<Record<keyof ReputationSignals, ScrapeTaskId>> = {
-  emailVerified: 'email-verification',
+  emailVerified: 'venmail-lookup',
   linkedinProfile: 'serp-scan',
   companyWebsite: 'serp-scan',
   socialProfiles: 'profile-scan',
@@ -63,7 +63,7 @@ export function computeReputationScore(signals: ReputationSignals): ReputationBr
   // Email verification
   if (signals.emailVerified) {
     score += REPUTATION_WEIGHTS.emailVerified;
-    sources.push(SIGNAL_TASK_SOURCES.emailVerified ?? 'email-verification');
+    sources.push(SIGNAL_TASK_SOURCES.emailVerified ?? 'venmail-lookup');
     appliedSignals.push('emailVerified');
   }
 

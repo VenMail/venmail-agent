@@ -5,8 +5,7 @@ import './providers/serpScan';
 import './providers/mapsScan';
 import './providers/profileScan';
 import './providers/contactPage';
-import './providers/contactout';
-import './providers/hunter';
+import './providers/venmailLookup';
 
 export async function runScrapeTask(
   context: ScrapeExecutionContext & { task: ScrapeTaskId }
