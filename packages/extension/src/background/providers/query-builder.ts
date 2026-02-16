@@ -36,50 +36,67 @@ export function determineSearchStrategy(context: LookupContext): SearchStrategy 
 
   // Build queries based on type
   if (type === 'individual') {
-    // Individual person lookup
+    // Individual person lookup - prioritize contact-rich pages
     if (hasName) {
+      // Direct contact queries
+      queries.push(`"${context.name}" email contact`);
+      queries.push(`"${context.name}" phone number`);
+      queries.push(`"${context.name}" "contact me" OR "reach me"`);
+      
+      // Professional profile queries
       queries.push(`"${context.name}" linkedin profile`);
-      queries.push(`"${context.name}" professional contact`);
+      queries.push(`"${context.name}" about page`);
       
       if (hasEmail) {
         const emailDomain = context.email!.split('@')[1];
         if (emailDomain) {
-          queries.push(`"${context.name}" site:${emailDomain}`);
+          queries.push(`"${context.name}" site:${emailDomain} contact`);
+          queries.push(`"${context.name}" @${emailDomain}`);
         }
       }
     }
   } else if (type === 'company') {
-    // Company lookup
+    // Company lookup - target contact pages
     includeMaps = true;
     
     if (hasCompany) {
+      // Contact-focused queries
+      queries.push(`"${context.company}" contact us`);
+      queries.push(`"${context.company}" phone email address`);
+      queries.push(`"${context.company}" customer service`);
+      queries.push(`"${context.company}" support contact`);
+      
+      // Company info queries
       queries.push(`"${context.company}" official website`);
-      queries.push(`"${context.company}" company contact`);
       queries.push(`"${context.company}" linkedin company`);
-      queries.push(`"${context.company}" address phone`);
     }
     
     if (hasDomain) {
-      queries.push(`site:${context.domain}`);
-      queries.push(`${context.domain} company info`);
+      queries.push(`site:${context.domain} contact`);
+      queries.push(`site:${context.domain}/contact`);
+      queries.push(`site:${context.domain}/about`);
     }
   } else {
-    // Mixed: person at company
+    // Mixed: person at company - combine both strategies
     includeMaps = true;
     
     if (hasName && hasCompany) {
-      queries.push(`"${context.name}" "${context.company}"`);
+      // Person + company contact queries
+      queries.push(`"${context.name}" "${context.company}" email`);
+      queries.push(`"${context.name}" "${context.company}" contact`);
       queries.push(`"${context.name}" linkedin ${context.company}`);
       queries.push(`"${context.name}" site:linkedin.com ${context.company}`);
     }
     
     if (hasName && hasDomain) {
-      queries.push(`"${context.name}" site:${context.domain}`);
+      queries.push(`"${context.name}" site:${context.domain} contact`);
       queries.push(`"${context.name}" @${context.domain}`);
+      queries.push(`site:${context.domain}/team "${context.name}"`);
     }
     
     if (hasCompany) {
-      queries.push(`"${context.company}" official website contact`);
+      queries.push(`"${context.company}" contact us`);
+      queries.push(`"${context.company}" team directory`);
     }
   }
 

@@ -2,6 +2,7 @@ import type { ContactChannel, ScrapeExecutionContext } from '@venmail/shared';
 import { registerScrapeTask, type ScrapeTaskOutput } from '../taskMap';
 import { computeRelevanceScore, dedupeByUrl, sanitizeSnippet, tokenize } from './serp/utils';
 import { determineSearchStrategy, filterResultsByType } from './query-builder';
+import { extractContactsFromHtml, extractEmailsWithScoring, extractPhonesWithScoring, dedupeContacts, isGenericEmail } from './extraction-utils';
 
 const NEGATIVE_KEYWORDS = ['scam', 'fraud', 'lawsuit', 'complaint', 'breach', 'spam', 'phishing'];
 const POSITIVE_KEYWORDS = ['award', 'recognized', 'leader', 'best', 'top', 'partnership', 'growth'];
@@ -202,7 +203,7 @@ registerScrapeTask('serp-scan', {
       const resolvedWebsite = companyWebsite ?? derivedWebsite ?? undefined;
       const trustedDomains = extractTrustedDomains(highlights);
       const trust = await enrichTrustIndicators(highlights, socialProfiles.map, signal);
-      const contactChannel = resolvedWebsite ? detectContactChannel(resolvedWebsite, highlights) : null;
+      const contactChannel = resolvedWebsite ? detectContactChannel(resolvedWebsite, highlights, { name, company, domain }) : null;
       const channelMap = new Map<string, ContactChannel>();
 
       const registerChannel = (channel: ContactChannel | null | undefined) => {
@@ -594,10 +595,17 @@ async function enrichTrustIndicators(
         followers[platform] = meta.followers;
       }
 
-      const channelPhones = contacts?.phones?.length ? dedupeStrings(contacts.phones, 8) : [];
-      const channelEmails = contacts?.emails?.length ? dedupeStrings(contacts.emails, 8) : [];
+      const channelPhones = contacts?.phones?.length ? dedupeContacts(contacts.phones, 8) : [];
+      const channelEmails = contacts?.emails?.length ? dedupeContacts(contacts.emails, 8) : [];
+      
+      // Filter and score emails by relevance
+      channelEmails.forEach((email: string) => {
+        if (!isGenericEmail(email)) {
+          emails.add(email);
+        }
+      });
+      
       channelPhones.forEach((phone: string) => phones.add(phone));
-      channelEmails.forEach((email: string) => emails.add(email));
 
       if (platform || channelPhones.length || channelEmails.length) {
         socialChannels.push({
@@ -682,8 +690,34 @@ async function scrapeSocialMeta(
                   else if (host.includes('instagram.com')) platform = 'instagram';
                   else if (host.includes('twitter.com') || host.includes('x.com')) platform = 'twitter';
 
-                  const emails = Array.from(new Set(Array.from(html.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)).map(m => m[0]))).slice(0,5);
-                  const phones = Array.from(new Set(Array.from(text.matchAll(/\+?[0-9][0-9\s().-]{6,}/g)).map(m => m[0]))).slice(0,5);
+                  // Extract visible text only, avoiding scripts and styles
+                  const visibleText = html
+                    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, ' ')
+                    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, ' ')
+                    .replace(/<head\b[^<]*(?:(?!<\/head>)<[^<]*)*<\/head>/gi, ' ')
+                    .replace(/<!--[\s\S]*?-->/g, ' ')
+                    .replace(/<[^>]+>/g, ' ')
+                    .replace(/&[a-z]+;/gi, ' ')
+                    .replace(/&#\d+;/g, ' ');
+
+                  // Improved email extraction
+                  const emailRegex = /\b[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)*\.[a-z]{2,}\b/gi;
+                  const emailMatches = Array.from(visibleText.matchAll(emailRegex)).map(m => m[0].toLowerCase());
+                  const emails = Array.from(new Set(emailMatches.filter(e => {
+                    const [local, domain] = e.split('@');
+                    if (!local || !domain) return false;
+                    const blacklist = ['noreply', 'no-reply', 'example', 'test', 'demo'];
+                    return !blacklist.some(b => local.startsWith(b));
+                  }))).slice(0, 5);
+
+                  // Improved phone extraction from visible text only
+                  const phoneRegex = /(?:\+?\d{1,3}[-\.\s]?)?(?:\(?\d{1,4}\)?[-\.\s]?)?\d{1,4}[-\.\s]?\d{1,4}[-\.\s]?\d{1,9}\b/g;
+                  const phoneMatches = Array.from(text.matchAll(phoneRegex)).map(m => m[0].trim());
+                  const phones = Array.from(new Set(phoneMatches.filter(p => {
+                    const digits = p.replace(/\D/g, '');
+                    return digits.length >= 7 && digits.length <= 15 && !/^(0+|1{7,}|(\d)\1{6,})$/.test(digits);
+                  }))).slice(0, 5);
+
                   const hasForm = /contact form|submit|request|message us/i.test(text) || /<form/i.test(html);
 
                   return { meta: { platform, followers }, contacts: { phones, emails, hasForm } };
@@ -888,7 +922,11 @@ function extractInlineSocial(
   };
 }
 
-function detectContactChannel(website: string, highlights: SearchResultHighlight[]): ContactChannel | null {
+function detectContactChannel(
+  website: string, 
+  highlights: SearchResultHighlight[],
+  context?: { name?: string; company?: string; domain?: string }
+): ContactChannel | null {
   let baseUrl: URL;
   try {
     baseUrl = new URL(ensureUrl(website));
@@ -935,10 +973,16 @@ function detectContactChannel(website: string, highlights: SearchResultHighlight
       score += 1;
     }
 
-    const emails = extractEmails(combinedText);
-    const phones = extractPhones(combinedText);
+    const emailResults = extractEmailsWithScoring(combinedText, context, false);
+    const phoneResults = extractPhonesWithScoring(combinedText, context, false);
+    const emails = emailResults.slice(0, 8).map(e => e.value);
+    const phones = phoneResults.slice(0, 8).map(p => p.value);
     if (emails.length || phones.length) {
-      score += 1;
+      score += 2;
+      // Boost score if we found multiple contact methods
+      if (emails.length && phones.length) {
+        score += 2;
+      }
     }
 
     if (score > 0 && (!best || score > best.score)) {
@@ -971,26 +1015,7 @@ function detectContactChannel(website: string, highlights: SearchResultHighlight
   return null;
 }
 
-function extractEmails(text: string): string[] {
-  if (!text) return [];
-  const matches = Array.from(text.matchAll(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi)).map((match) => match[0].toLowerCase());
-  return Array.from(new Set(matches)).slice(0, 5);
-}
 
-function extractPhones(text: string): string[] {
-  if (!text) return [];
-  const matches = Array.from(text.matchAll(/\+?[0-9][0-9\s().-]{6,}/g)).map((match) => match[0].trim());
-  return Array.from(
-    new Set(
-      matches.map((phone) =>
-        phone
-          .replace(/[().-]/g, ' ')
-          .replace(/\s{2,}/g, ' ')
-          .trim()
-      )
-    )
-  ).slice(0, 5);
-}
 
 function extractTrustedDomains(highlights: SearchResultHighlight[]): string[] {
   const trustedSources = [

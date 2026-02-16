@@ -1,12 +1,11 @@
 import type { ScrapeExecutionContext } from '@venmail/shared';
 
 import { registerScrapeTask, type ScrapeTaskOutput } from '../taskMap';
+import { extractEmails, isValidEmail } from './extraction-utils';
 
 const GOOGLE_SEARCH_BASE = 'https://www.google.com/search?q=';
 const VENMAIL_LOOKUP_BASE = 'https://api.venmail.io/lookup/';
 const CONTACTOUT_HINT = 'ContactOut';
-
-const EMAIL_REGEX = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/gi;
 
 registerScrapeTask('venmail-lookup', {
   async run(context: ScrapeExecutionContext): Promise<ScrapeTaskOutput> {
@@ -105,7 +104,7 @@ async function searchContactOut(query: string, signal: AbortSignal) {
   }
 
   const html = await response.text();
-  const emails = Array.from(html.matchAll(EMAIL_REGEX)).map((match) => match[0]);
+  const emails = extractEmails(html, true).filter(email => isValidEmail(email));
 
   const urlMatches = Array.from(html.matchAll(/https?:\/\/[\w./%-]+/gi)).map((match) => match[0]);
   return {
@@ -235,3 +234,4 @@ function buildResult(params: {
 function dedupeEmails(emails: string[]): string[] {
   return Array.from(new Set(emails.map((email) => email.trim().toLowerCase()).filter(Boolean))).slice(0, 5);
 }
+

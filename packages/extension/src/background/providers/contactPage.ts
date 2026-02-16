@@ -1,13 +1,11 @@
 import type { ScrapeExecutionContext } from '@venmail/shared';
 
 import { registerScrapeTask, type ScrapeTaskOutput } from '../taskMap';
+import { extractContactsFromHtml } from './extraction-utils';
 
 const TRUSTED_FORM_PATTERNS = [/type="email"/i, /contact-form/i, /support-form/i];
 const TRUSTED_TLDS = ['.edu', '.gov', '.gov.ng', '.org'];
 const TRUSTED_HOSTS = ['zendesk.com', 'freshdesk.com', 'intercom.help'];
-
-const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
-const PHONE_REGEX = /(?:(?:\+?\d{1,3}[ \-.]?)?(?:\(\d{1,4}\)[ \-.]?)?\d{1,4}(?:[ \-.]\d{2,4}){2,4})/g;
 const CONTACT_PATHS = [
   '',
   '/contact',
@@ -59,10 +57,10 @@ registerScrapeTask('contact-page-scan', {
         }
 
         const html = await response.text();
-        const pageEmails = extractMatches(html, EMAIL_REGEX);
-        const pagePhones = extractMatches(html, PHONE_REGEX)
-          .map((value) => value.replace(/\s+/g, ' ').trim())
-          .filter(Boolean);
+        const context = { name: lookup.name, company: lookup.company, domain: lookup.domain };
+        const { emails: emailResults, phones: phoneResults } = extractContactsFromHtml(html, context);
+        const pageEmails = emailResults.slice(0, 10).map(e => e.value);
+        const pagePhones = phoneResults.slice(0, 10).map(p => p.value);
 
         if (pageEmails.length || pagePhones.length) {
           const channel: ContactChannel = {
@@ -174,17 +172,6 @@ function deriveCompanyName(baseUrl: string): string {
   }
 }
 
-function extractMatches(source: string, regex: RegExp): string[] {
-  const matches: string[] = [];
-  regex.lastIndex = 0;
-  let result: RegExpExecArray | null = null;
-  while ((result = regex.exec(source)) !== null) {
-    if (result[0]) {
-      matches.push(result[0]);
-    }
-  }
-  return matches;
-}
 
 function evaluateConfidence(url: string, channel: ContactChannel): number {
   let score = 10;

@@ -3,7 +3,10 @@ export type ScrapeTaskId =
   | 'maps-scan'
   | 'profile-scan'
   | 'contact-page-scan'
-  | 'venmail-lookup';
+  | 'venmail-lookup'
+  | 'whois-scan'
+  | 'contactout-capture'
+  | 'email-verification';
 
 export interface SearchResultHighlight {
   title: string;
@@ -56,6 +59,17 @@ export interface ExtensionSettings {
   };
   fallbacks: {
     venmail?: {
+      enabled: boolean;
+      apiKey?: string;
+    };
+    contactOut?: {
+      enabled: boolean;
+      polling?: {
+        intervalMs?: number;
+        timeoutMs?: number;
+      };
+    };
+    hunter?: {
       enabled: boolean;
       apiKey?: string;
     };
