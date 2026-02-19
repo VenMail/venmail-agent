@@ -15,7 +15,7 @@ import './popupApp.css';
 import { DEFAULT_SETTINGS } from '../shared/settings';
 import { safeSendMessage, safeSendTabsMessage } from '../shared/messaging';
 import { ReputationBreakdown, ReputationSignals, buildRequestKey, explainReputation } from '@venmail/shared';
-import { EditIcon, ExternalLink } from 'lucide-react';
+import { EditIcon, ExternalLink, Maximize2 } from 'lucide-react';
 import { DetectionSnapshot } from './components/DetectionSnapshot';
 import { InsightSummary } from './components/InsightSummary';
 import { LookupProgressTimeline } from './components/LookupProgressTimeline';
@@ -563,6 +563,10 @@ export function PopupApp(): JSX.Element {
       setStatus({ label: 'Failed to encode quick sync payload', variant: 'error' });
     }
   }, [lastLookupRequest, lastResponse, lookupQuery, settings?.apiBaseUrl]);
+
+  const handleOpenFullPage = useCallback(() => {
+    chrome.tabs.create({ url: chrome.runtime.getURL('src/fullpage/index.html') });
+  }, []);
 
   useEffect(() => {
     safeSendMessage({ action: 'popupReady' }, (response: ExtensionResponseMessage) => {
@@ -1131,36 +1135,46 @@ export function PopupApp(): JSX.Element {
             <h1>Venmail Agent</h1>
             <p className={`status status-${status.variant}`}>{status.label}</p>
           </div>
-          <nav className="nav">
+          <div className="header-actions">
             <button
               type="button"
-              className={viewMode === 'results' ? 'nav__item nav__item--active' : 'nav__item'}
-              onClick={() => setViewMode('results')}
+              className="ghost-button"
+              onClick={handleOpenFullPage}
+              title="Open full page interface"
             >
-              Results
+              <Maximize2 size={16} />
             </button>
-            <button
-              type="button"
-              className={viewMode === 'search' ? 'nav__item nav__item--active' : 'nav__item'}
-              onClick={() => setViewMode('search')}
-            >
-              Search form
-            </button>
-            <button
-              type="button"
-              className={viewMode === 'detection' ? 'nav__item nav__item--active' : 'nav__item'}
-              onClick={() => setViewMode('detection')}
-            >
-              Detection
-            </button>
-            <button
-              type="button"
-              className={viewMode === 'advanced' ? 'nav__item nav__item--active' : 'nav__item'}
-              onClick={() => setViewMode('advanced')}
-            >
-              Advanced
-            </button>
-          </nav>
+            <nav className="nav">
+              <button
+                type="button"
+                className={viewMode === 'results' ? 'nav__item nav__item--active' : 'nav__item'}
+                onClick={() => setViewMode('results')}
+              >
+                Results
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'search' ? 'nav__item nav__item--active' : 'nav__item'}
+                onClick={() => setViewMode('search')}
+              >
+                Search form
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'detection' ? 'nav__item nav__item--active' : 'nav__item'}
+                onClick={() => setViewMode('detection')}
+              >
+                Detection
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'advanced' ? 'nav__item nav__item--active' : 'nav__item'}
+                onClick={() => setViewMode('advanced')}
+              >
+                Advanced
+              </button>
+            </nav>
+          </div>
         </div>
       </header>
 

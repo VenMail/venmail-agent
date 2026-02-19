@@ -7,7 +7,8 @@ import type {
   ReputationResponse,
   ScrapeCacheEntry,
   ScrapeResult,
-  ScrapeTaskId
+  ScrapeTaskId,
+  SearchHistoryEntry
 } from '@venmail/shared';
 import { buildRequestKey } from '@venmail/shared';
 
@@ -19,6 +20,7 @@ const SCRAPE_PREFIX = 'venmail:scrape:';
 const TASK_LAST_RUN_PREFIX = 'venmail:task:lastRun:';
 const DETECTION_PREFIX = 'venmail:detection:tab:';
 const LAST_CONTEXT_LOOKUP_KEY = 'venmail:last-context-lookup';
+const SEARCH_HISTORY_KEY = 'venmail:search-history';
 
 export interface DetectionStorageEntry {
   tabId: number;
@@ -215,4 +217,36 @@ async function storageRemove(key: string): Promise<void> {
       resolve();
     });
   });
+}
+
+export async function getSearchHistory(): Promise<SearchHistoryEntry[]> {
+  const history = await storageGet<SearchHistoryEntry[]>(SEARCH_HISTORY_KEY);
+  return history ?? [];
+}
+
+export async function saveSearchHistoryEntry(entry: SearchHistoryEntry): Promise<void> {
+  const history = await getSearchHistory();
+  
+  // Remove any existing entry with the same timestamp
+  const filteredHistory = history.filter(h => h.timestamp !== entry.timestamp);
+  
+  // Add new entry
+  filteredHistory.push(entry);
+  
+  // Keep only the most recent 100 entries
+  const limitedHistory = filteredHistory
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .slice(0, 100);
+  
+  await storageSet(SEARCH_HISTORY_KEY, limitedHistory);
+}
+
+export async function deleteSearchHistoryEntry(timestamp: number): Promise<void> {
+  const history = await getSearchHistory();
+  const filteredHistory = history.filter(h => h.timestamp !== timestamp);
+  await storageSet(SEARCH_HISTORY_KEY, filteredHistory);
+}
+
+export async function clearSearchHistory(): Promise<void> {
+  await storageRemove(SEARCH_HISTORY_KEY);
 }

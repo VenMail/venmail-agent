@@ -11,7 +11,11 @@ import type {
   RegisterDetectedContactsMessage,
   ReputationResponse,
   SelectionContext,
-  MapReputationSummary
+  MapReputationSummary,
+  GetSearchHistoryMessage,
+  SaveSearchHistoryEntryMessage,
+  DeleteSearchHistoryEntryMessage,
+  ClearSearchHistoryMessage
 } from '@venmail/shared';
 import { validateLookup } from '@venmail/shared';
 
@@ -23,7 +27,11 @@ import {
   getDetectionSnapshot,
   clearDetectionSnapshot,
   loadLastContextLookup,
-  saveLastContextLookup
+  saveLastContextLookup,
+  getSearchHistory,
+  saveSearchHistoryEntry,
+  deleteSearchHistoryEntry,
+  clearSearchHistory
 } from './storage';
 
 let pendingPopupLookup: { lookup: ContactLookup; context?: FetchContactInfoMessage['context'] } | null = null;
@@ -169,6 +177,39 @@ async function handleMessage(message: ExtensionMessage, tabId?: number): Promise
         success: true,
         pendingLookup: pending ?? undefined,
         meta: { notes: ['popup_ready'] }
+      } satisfies ExtensionResponseMessage;
+    }
+
+    case 'getSearchHistory': {
+      const history = await getSearchHistory();
+      return {
+        success: true,
+        searchHistory: history,
+        meta: { notes: ['search_history_loaded'] }
+      } satisfies ExtensionResponseMessage;
+    }
+
+    case 'saveSearchHistoryEntry': {
+      await saveSearchHistoryEntry(message.entry);
+      return {
+        success: true,
+        meta: { notes: ['search_history_entry_saved'] }
+      } satisfies ExtensionResponseMessage;
+    }
+
+    case 'deleteSearchHistoryEntry': {
+      await deleteSearchHistoryEntry(message.timestamp);
+      return {
+        success: true,
+        meta: { notes: ['search_history_entry_deleted'] }
+      } satisfies ExtensionResponseMessage;
+    }
+
+    case 'clearSearchHistory': {
+      await clearSearchHistory();
+      return {
+        success: true,
+        meta: { notes: ['search_history_cleared'] }
       } satisfies ExtensionResponseMessage;
     }
 

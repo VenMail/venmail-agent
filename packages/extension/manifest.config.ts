@@ -30,13 +30,13 @@ export default defineManifest({
       run_at: 'document_idle'
     }
   ],
-  background: {
-    service_worker: 'src/background/index.ts',
-    type: 'module'
-  },
   action: {
     default_popup: 'src/popup/index.html',
     default_title: 'Venmail Agent'
+  },
+  background: {
+    service_worker: 'src/background/index.ts',
+    type: 'module'
   },
   icons: {
     '16': 'public/icons/icon16.png',

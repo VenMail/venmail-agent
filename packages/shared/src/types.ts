@@ -86,7 +86,11 @@ export type ExtensionAction =
   | 'registerDetectedContacts'
   | 'getDetectedContacts'
   | 'getLastContextLookup'
-  | 'popupReady';
+  | 'popupReady'
+  | 'getSearchHistory'
+  | 'saveSearchHistoryEntry'
+  | 'deleteSearchHistoryEntry'
+  | 'clearSearchHistory';
 
 export interface ContactLookup {
   email?: string;
@@ -166,6 +170,24 @@ export interface PopupReadyMessage {
   action: 'popupReady';
 }
 
+export interface GetSearchHistoryMessage {
+  action: 'getSearchHistory';
+}
+
+export interface SaveSearchHistoryEntryMessage {
+  action: 'saveSearchHistoryEntry';
+  entry: SearchHistoryEntry;
+}
+
+export interface DeleteSearchHistoryEntryMessage {
+  action: 'deleteSearchHistoryEntry';
+  timestamp: number;
+}
+
+export interface ClearSearchHistoryMessage {
+  action: 'clearSearchHistory';
+}
+
 export interface PendingLookupMessage {
   type: 'venmail-pending-lookup';
   pendingLookup: {
@@ -192,7 +214,11 @@ export type ExtensionMessage =
   | GetDetectedContactsMessage
   | GetLastContextLookupMessage
   | PopupReadyMessage
-  | GetSelectionContextMessage;
+  | GetSelectionContextMessage
+  | GetSearchHistoryMessage
+  | SaveSearchHistoryEntryMessage
+  | DeleteSearchHistoryEntryMessage
+  | ClearSearchHistoryMessage;
 
 export type RuntimePushMessage =
   | PendingLookupMessage
@@ -349,6 +375,14 @@ export interface ExtensionResponseMeta {
   [key: string]: unknown;
 }
 
+export interface SearchHistoryEntry {
+  query: string;
+  lookup: ContactLookup;
+  response: ReputationResponse;
+  timestamp: number;
+  fromCache?: boolean;
+}
+
 export interface ExtensionResponseMessage {
   success: boolean;
   data?: ReputationResponse;
@@ -369,5 +403,6 @@ export interface ExtensionResponseMessage {
     lookup: ContactLookup;
     context?: FetchContactInfoMessage['context'];
   };
+  searchHistory?: SearchHistoryEntry[];
   error?: string;
 }

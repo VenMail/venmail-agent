@@ -10,7 +10,8 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       input: {
-        popup: 'src/popup/index.html'
+        popup: 'src/popup/index.html',
+        fullpage: 'src/fullpage/index.html'
       }
     }
   }
