@@ -39,9 +39,10 @@ export function determineSearchStrategy(context: LookupContext): SearchStrategy 
     // Individual person lookup - prioritize contact-rich pages
     if (hasName) {
       // Direct contact queries
-      queries.push(`"${context.name}" email contact`);
-      queries.push(`"${context.name}" phone number`);
-      queries.push(`"${context.name}" "contact me" OR "reach me"`);
+      queries.push(`"${context.name}" contactout email`);//only use google for this
+      queries.push(`"${context.name}" email contact`);//only google
+      queries.push(`"${context.name}" "contact me" OR "reach me"`);//only google
+      queries.push(`"${context.name}" phone number`);//only google
       
       // Professional profile queries
       queries.push(`"${context.name}" linkedin profile`);
@@ -104,9 +105,11 @@ export function determineSearchStrategy(context: LookupContext): SearchStrategy 
   const primaryQuery = queries[0] || buildFallbackQuery(context);
 
   // Choose search engines based on type
-  const searchEngines = type === 'company' 
+  const searchEngines = type === 'company'
     ? ['google', 'bing'] // Google and Bing are better for companies
-    : ['google', 'bing', 'duckduckgo']; // All three for individuals
+    : type === 'individual'
+      ? ['google'] // Direct/name queries should run on Google only
+      : ['google', 'bing', 'duckduckgo'];
 
   return {
     type,

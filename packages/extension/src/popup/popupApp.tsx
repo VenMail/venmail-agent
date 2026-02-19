@@ -7,7 +7,6 @@ import type {
   FetchContactInfoMessage,
   LookupProgressUpdate,
   ReputationResponse,
-  ScrapeTaskId,
   SaveSettingsMessage,
   SelectionContext
 } from '@venmail/shared';
@@ -16,17 +15,7 @@ import './popupApp.css';
 import { DEFAULT_SETTINGS } from '../shared/settings';
 import { safeSendMessage, safeSendTabsMessage } from '../shared/messaging';
 import { ReputationBreakdown, ReputationSignals, buildRequestKey, explainReputation } from '@venmail/shared';
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  EditIcon,
-  ExternalLink,
-  Link2,
-  Loader2,
-  Mail,
-  Phone
-} from 'lucide-react';
+import { EditIcon, ExternalLink } from 'lucide-react';
 import { DetectionSnapshot } from './components/DetectionSnapshot';
 import { InsightSummary } from './components/InsightSummary';
 import { LookupProgressTimeline } from './components/LookupProgressTimeline';
@@ -39,92 +28,7 @@ interface StatusMessage {
   variant: StatusVariant;
 }
 
-type LookupHistoryEntry = {
-  timestamp: number;
-  durationMs: number;
-  source: 'cache' | 'fresh' | 'error';
-};
-
-const LOOKUP_HISTORY_KEY = 'venmail_lookup_history';
-
-function renderMapsInsights(
-  response: ReputationResponse | null,
-  contextContext?: FetchContactInfoMessage['context']
-): JSX.Element | null {
-  const summary = response?.additionalData.mapSummary ?? contextContext?.mapSummary;
-  if (!summary) {
-    return null;
-  }
-
-  const { rating, reviewCount, statusText, categories, address, phone, sourceUrl, name } = summary;
-
-  return (
-    <section className="insights-card">
-      <h2>Maps reputation</h2>
-      <dl className="insights-list">
-        {name ? (
-          <div>
-            <dt>Listing</dt>
-            <dd>{name}</dd>
-          </div>
-        ) : null}
-
-        {typeof rating === 'number' ? (
-          <div>
-            <dt>Rating</dt>
-            <dd>{rating.toFixed(2)} / 5</dd>
-          </div>
-        ) : null}
-
-        {typeof reviewCount === 'number' ? (
-          <div>
-            <dt>Reviews</dt>
-            <dd>{reviewCount.toLocaleString()}</dd>
-          </div>
-        ) : null}
-
-        {statusText ? (
-          <div>
-            <dt>Status</dt>
-            <dd>{statusText}</dd>
-          </div>
-        ) : null}
-
-        {categories?.length ? (
-          <div>
-            <dt>Categories</dt>
-            <dd>{categories.join(', ')}</dd>
-          </div>
-        ) : null}
-
-        {address ? (
-          <div>
-            <dt>Address</dt>
-            <dd>{address}</dd>
-          </div>
-        ) : null}
-
-        {phone ? (
-          <div>
-            <dt>Phone</dt>
-            <dd>{phone}</dd>
-          </div>
-        ) : null}
-
-        {sourceUrl ? (
-          <div>
-            <dt>Source</dt>
-            <dd>
-              <a href={sourceUrl} target="_blank" rel="noreferrer">
-                View on Google Maps
-              </a>
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    </section>
-  );
-}
+const DEFAULT_VENMAIL_WEB_BASE = 'https://app.venmail.io';
 
 interface TaskConfigFormState {
   enabled: boolean;
@@ -163,7 +67,6 @@ interface LookupFormState {
 }
 
 type ViewMode = 'results' | 'search' | 'detection' | 'advanced';
-type PopupMode = 'query' | 'result';
 type FormErrors = Partial<Record<keyof LookupFormState, string>>;
 
 const defaultStatus: StatusMessage = { label: 'Idle', variant: 'info' };
@@ -288,14 +191,44 @@ function normalizeComparableName(value?: string | null): string | null {
   return value.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
-function formatTaskName(taskId?: ScrapeTaskId): string {
-  if (!taskId) {
-    return 'Task';
+function toAscii85(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let output = '';
+
+  for (let index = 0; index < bytes.length; index += 4) {
+    const block = bytes.slice(index, index + 4);
+    if (block.length === 4 && block[0] === 0 && block[1] === 0 && block[2] === 0 && block[3] === 0) {
+      output += 'z';
+      continue;
+    }
+
+    let value = 0;
+    for (let offset = 0; offset < 4; offset += 1) {
+      value = (value << 8) | (block[offset] ?? 0);
+    }
+
+    const encoded = new Array(5);
+    for (let offset = 4; offset >= 0; offset -= 1) {
+      encoded[offset] = String.fromCharCode((value % 85) + 33);
+      value = Math.floor(value / 85);
+    }
+
+    output += encoded.slice(0, block.length + 1).join('');
   }
-  return taskId
-    .split('-')
-    .map((part) => (part.length ? part[0]?.toUpperCase() + part.slice(1) : part))
-    .join(' ');
+
+  return output;
+}
+
+function resolveQuickSyncBaseUrl(apiBaseUrl?: string): string {
+  if (!apiBaseUrl?.trim()) {
+    return DEFAULT_VENMAIL_WEB_BASE;
+  }
+
+  try {
+    return new URL(apiBaseUrl).origin;
+  } catch {
+    return DEFAULT_VENMAIL_WEB_BASE;
+  }
 }
 
 function buildSelectionSignature(selection?: SelectionContext | null): string | null {
@@ -361,8 +294,6 @@ export function PopupApp(): JSX.Element {
   const [isFetching, setIsFetching] = useState(false);
   const [lastResponse, setLastResponse] = useState<ReputationResponse | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>('search');
-  const [lookupLatencyMs, setLookupLatencyMs] = useState<number | null>(null);
-  const [lookupHistory, setLookupHistory] = useState<LookupHistoryEntry[]>([]);
   const [lastLookupRequest, setLastLookupRequest] = useState<ContactLookup | null>(null);
   const [progressUpdates, setProgressUpdates] = useState<LookupProgressUpdate[]>([]);
   const [activeLookupKey, setActiveLookupKey] = useState<string | null>(null);
@@ -374,7 +305,6 @@ export function PopupApp(): JSX.Element {
       return false;
     }
   });
-  const [mode, setMode] = useState<PopupMode>('query');
   const [lookupQuery, setLookupQuery] = useState('');
   const [reputation, setReputation] = useState<ReputationBreakdown | null>(null);
   const [reputationSignals, setReputationSignals] = useState<ReputationSignals | null>(null);
@@ -457,80 +387,6 @@ export function PopupApp(): JSX.Element {
     });
   }, [applySelectionContext]);
 
-  useEffect(() => {
-    if (!chrome?.storage?.local) {
-      return;
-    }
-
-    chrome.storage.local.get(LOOKUP_HISTORY_KEY, (result) => {
-      if (chrome.runtime.lastError) {
-        console.warn('[venmail] Failed to load lookup history:', chrome.runtime.lastError.message);
-        return;
-      }
-
-      const stored = result?.[LOOKUP_HISTORY_KEY];
-      if (!Array.isArray(stored)) {
-        return;
-      }
-
-      const normalized = stored.filter((entry: unknown): entry is LookupHistoryEntry => {
-        if (!entry || typeof entry !== 'object') {
-          return false;
-        }
-        const candidate = entry as Partial<LookupHistoryEntry>;
-        return (
-          typeof candidate.timestamp === 'number' &&
-          typeof candidate.durationMs === 'number' &&
-          (candidate.source === 'cache' || candidate.source === 'fresh' || candidate.source === 'error')
-        );
-      });
-
-      if (!normalized.length) {
-        return;
-      }
-
-      const trimmed = normalized.slice(-10);
-      setLookupHistory(trimmed);
-      setLookupLatencyMs(trimmed[trimmed.length - 1]?.durationMs ?? null);
-    });
-  }, []);
-
-  const appendLookupHistory = useCallback((entry: LookupHistoryEntry) => {
-    setLookupHistory((prev) => {
-      const next = [...prev, entry].slice(-10);
-      if (chrome?.storage?.local) {
-        chrome.storage.local.set({ [LOOKUP_HISTORY_KEY]: next }, () => {
-          if (chrome.runtime.lastError) {
-            console.warn('[venmail] Failed to persist lookup history:', chrome.runtime.lastError.message);
-          }
-        });
-      }
-      return next;
-    });
-  }, []);
-
-  const handleToggleDebugLogging = useCallback(() => {
-    setDebugLoggingEnabled((prev) => {
-      const next = !prev;
-      try {
-        localStorage.setItem('venmail_debug_logging', String(next));
-      } catch {
-        // ignore persistence failures
-      }
-      return next;
-    });
-  }, []);
-
-  const handleClearLookupHistory = useCallback(() => {
-    setLookupHistory([]);
-    setLookupLatencyMs(null);
-    if (chrome?.storage?.local) {
-      chrome.storage.local.remove(LOOKUP_HISTORY_KEY, () => {
-        void chrome.runtime.lastError;
-      });
-    }
-  }, []);
-
   const handleLookupFieldChange = useCallback((field: keyof LookupFormState, value: string) => {
     setLookupForm((prev) => ({ ...prev, [field]: value }));
     setLookupErrors((prev) => {
@@ -593,12 +449,11 @@ export function PopupApp(): JSX.Element {
         const source: 'cache' | 'fresh' | 'error' = chrome.runtime.lastError
           ? 'error'
           : response?.success
-          ? response.meta?.fromCache
-            ? 'cache'
-            : 'fresh'
-          : 'error';
+            ? response.meta?.fromCache
+              ? 'cache'
+              : 'fresh'
+            : 'error';
 
-        setLookupLatencyMs(duration);
         if (debugLoggingEnabled) {
           console.info('[venmail] Lookup completed in %dms (%s)', Math.round(duration), source);
         }
@@ -608,7 +463,6 @@ export function PopupApp(): JSX.Element {
             label: `${chrome.runtime.lastError.message ?? 'Lookup failed'} after ${Math.round(duration)}ms`,
             variant: 'error'
           });
-          appendLookupHistory({ timestamp: Date.now(), durationMs: duration, source });
           return;
         }
 
@@ -620,18 +474,15 @@ export function PopupApp(): JSX.Element {
           setLookupQuery(
             lookup.email || lookup.name || lookup.domain || lookup.company || lookupQuery || 'Latest lookup'
           );
-          setMode('result');
           setViewMode('results');
           const baseLabel = response.meta?.fromCache ? 'Insights loaded from cache' : 'Fresh insights ready';
           setStatus({ label: `${baseLabel} in ${Math.round(duration)}ms`, variant: 'success' });
-          appendLookupHistory({ timestamp: Date.now(), durationMs: duration, source });
         } else {
           setStatus({ label: `${response?.error ?? 'Lookup failed'} after ${Math.round(duration)}ms`, variant: 'error' });
-          appendLookupHistory({ timestamp: Date.now(), durationMs: duration, source });
         }
       });
     },
-    [appendLookupHistory, debugLoggingEnabled, lookupQuery, setStatus]
+    [debugLoggingEnabled, lookupQuery, setStatus]
   );
 
   const handleLookupSubmit = useCallback(
@@ -648,13 +499,6 @@ export function PopupApp(): JSX.Element {
     },
     [performLookup, lookupForm, validateLookupForm]
   );
-
-  const handleRefreshLookup = useCallback(() => {
-    if (!lastLookupRequest || isFetching) {
-      return;
-    }
-    performLookup({ ...lastLookupRequest }, { triggerMode: 'manual' });
-  }, [isFetching, lastLookupRequest, performLookup]);
 
   const handleClearCache = useCallback(() => {
     if (!activeLookupKey) return;
@@ -690,11 +534,35 @@ export function PopupApp(): JSX.Element {
         company: targetLookup.company ?? prev.company
       }));
       setLookupErrors({});
-      setMode('result');
       performLookup(targetLookup, { triggerMode: 'auto', context: payload.context });
     },
     [performLookup]
   );
+
+  const handleExportToVenmail = useCallback(() => {
+    if (!lastResponse) {
+      return;
+    }
+
+    const payload = {
+      source: 'venmail-extension',
+      exportedAt: new Date().toISOString(),
+      request: lastLookupRequest,
+      query: lookupQuery,
+      response: lastResponse
+    };
+
+    try {
+      const encoded = toAscii85(JSON.stringify(payload));
+      const webBase = resolveQuickSyncBaseUrl(settings?.apiBaseUrl);
+      const quickSyncUrl = `${webBase}/contacts/quick-sync?payload=${encodeURIComponent(encoded)}`;
+      window.open(quickSyncUrl, '_blank', 'noopener,noreferrer');
+      setStatus({ label: 'Opened Venmail quick sync', variant: 'success' });
+    } catch (error) {
+      console.warn('[venmail] export payload encoding failed', error);
+      setStatus({ label: 'Failed to encode quick sync payload', variant: 'error' });
+    }
+  }, [lastLookupRequest, lastResponse, lookupQuery, settings?.apiBaseUrl]);
 
   useEffect(() => {
     safeSendMessage({ action: 'popupReady' }, (response: ExtensionResponseMessage) => {
@@ -1169,201 +1037,6 @@ export function PopupApp(): JSX.Element {
     );
   };
 
-  const renderReputation = (response: ReputationResponse | null): JSX.Element => {
-    if (!response) {
-      return <p className="empty-state">Run a lookup to see reputation insights.</p>;
-    }
-
-    const { additionalData, reputation, companyInfo, socialProfiles } = response;
-    const phoneNumbers = additionalData.phoneNumbers ?? [];
-    const locations = additionalData.locations ?? [];
-    const socialEntries = Object.entries(socialProfiles).filter(([, url]) => Boolean(url)) as [string, string][];
-    const reputationSources = reputation.sources.slice(0, 4);
-    const actionableTakeaways: { label: string; tone: 'positive' | 'warning' | 'info'; action?: () => void }[] = [];
-    const badges: { label: string; tone: 'positive' | 'info' | 'neutral' }[] = [];
-    const confidenceScores = additionalData.confidenceScores ?? {};
-
-    if (reputation.status === 'verified' || reputation.score >= 80) {
-      actionableTakeaways.push({ label: 'Profile looks strong — share contact with confidence.', tone: 'positive' });
-      badges.push({ label: 'Verified reputation', tone: 'positive' });
-    }
-
-    if (additionalData.trustedSources?.length) {
-      actionableTakeaways.push({
-        label: `Trusted sources found on ${additionalData.trustedSources.length} site${
-          additionalData.trustedSources.length > 1 ? 's' : ''
-        }.`,
-        tone: 'positive'
-      });
-      badges.push({ label: 'Trusted sources confirmed', tone: 'positive' });
-    }
-
-    if (additionalData.mapSummary?.rating && additionalData.mapSummary.rating >= 4.2) {
-      actionableTakeaways.push({
-        label: `Excellent Maps presence (${additionalData.mapSummary.rating.toFixed(1)}/5).`,
-        tone: 'positive'
-      });
-      badges.push({ label: `${additionalData.mapSummary.rating.toFixed(1)}★ on Maps`, tone: 'positive' });
-    }
-
-    if (additionalData.negativeMentions?.length) {
-      actionableTakeaways.push({
-        label: `Investigate ${additionalData.negativeMentions.length} negative mention${
-          additionalData.negativeMentions.length > 1 ? 's' : ''
-        }.`,
-        tone: 'warning'
-      });
-    }
-
-    if ((confidenceScores.social ?? 0) >= 60) {
-      actionableTakeaways.push({
-        label: 'Follow up on LinkedIn — strong social presence detected.',
-        tone: 'positive',
-        action: additionalData.socialLinks?.linkedin
-          ? () => window.open(additionalData.socialLinks?.linkedin, '_blank')
-          : undefined
-      });
-      badges.push({ label: 'Strong social presence', tone: 'positive' });
-    }
-
-    if ((confidenceScores.contact ?? 0) >= 60) {
-      actionableTakeaways.push({
-        label: 'Call or email using verified contact channel.',
-        tone: 'positive'
-      });
-      badges.push({ label: 'Contact channel verified', tone: 'positive' });
-    }
-
-    if (!badges.length) {
-      badges.push({ label: 'Signals still building', tone: 'neutral' });
-    }
-
-    if (!actionableTakeaways.length) {
-      actionableTakeaways.push({
-        label: 'Gather more signals to enrich this profile.',
-        tone: 'info'
-      });
-    }
-
-    const quickStats = [
-      {
-        label: 'Reputation score',
-        value: reputation.score.toString(),
-        detail: reputation.status
-      },
-      {
-        label: 'Email status',
-        value: additionalData.verifiedEmail ? 'Verified' : 'Unverified',
-        detail: additionalData.verifiedEmail ? 'Delivery safe' : 'Needs validation'
-      },
-      {
-        label: 'Phone signals',
-        value: phoneNumbers.length > 0 ? phoneNumbers[0] : 'Not surfaced',
-        detail: phoneNumbers.length > 1 ? `+${phoneNumbers.length - 1} more` : undefined
-      },
-      {
-        label: 'Geo presence',
-        value: locations.length > 0 ? locations[0] : 'Not detected',
-        detail: locations.length > 1 ? `+${locations.length - 1} regions` : undefined
-      }
-    ];
-
-    return (
-      <section className="insight-card insight-summary">
-        <div className="insight-card__header">
-          <h2>Insight summary</h2>
-          <span className="tag">Updated {response.generatedAt ? new Date(response.generatedAt).toLocaleTimeString() : 'moments ago'}</span>
-        </div>
-
-        <ul className="insight-actions">
-          {actionableTakeaways.map((item, index) => (
-            <li key={`${item.label}-${index}`} className={`insight-actions__item insight-actions__item--${item.tone}`}>
-              <button type="button" onClick={item.action} disabled={!item.action} className={item.action ? 'insight-actions__cta' : undefined}>
-                {item.label}
-              </button>
-            </li>
-          ))}
-        </ul>
-
-        <div className="insight-badges">
-          {badges.map((badge, index) => (
-            <span key={`${badge.label}-${index}`} className={`insight-badge insight-badge--${badge.tone}`}>
-              {badge.label}
-            </span>
-          ))}
-        </div>
-
-        <div className="insight-highlights">
-          {quickStats.map((item) => (
-            <div key={item.label} className="highlight-card">
-              <span className="highlight-label">{item.label}</span>
-              <span className="highlight-value">{item.value}</span>
-              {item.detail && <span className="highlight-detail">{item.detail}</span>}
-            </div>
-          ))}
-        </div>
-
-        <div className="insight-body">
-          <div className="insight-section">
-            <h3>Company profile</h3>
-            <dl className="insight-list">
-              <div>
-                <dt>Name</dt>
-                <dd>{companyInfo.name || 'Unavailable'}</dd>
-              </div>
-              <div>
-                <dt>Website</dt>
-                <dd>{companyInfo.website ? <a href={companyInfo.website} target="_blank" rel="noreferrer">{companyInfo.website}</a> : 'Unavailable'}</dd>
-              </div>
-              {companyInfo.industry && (
-                <div>
-                  <dt>Industry</dt>
-                  <dd>{companyInfo.industry}</dd>
-                </div>
-              )}
-              {companyInfo.size && (
-                <div>
-                  <dt>Team size</dt>
-                  <dd>{companyInfo.size}</dd>
-                </div>
-              )}
-            </dl>
-          </div>
-
-          <div className="insight-section">
-            <h3>Digital presence</h3>
-            {socialEntries.length > 0 ? (
-              <ul className="insight-links">
-                {socialEntries.map(([platform, url]) => (
-                  <li key={platform}>
-                    <a href={url} target="_blank" rel="noreferrer">
-                      {platform}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="insight-placeholder">No public profiles detected yet.</p>
-            )}
-          </div>
-
-          <div className="insight-section">
-            <h3>Signals referenced</h3>
-            {reputationSources.length > 0 ? (
-              <ul className="insight-pills">
-                {reputationSources.map((source) => (
-                  <li key={source}>{source}</li>
-                ))}
-              </ul>
-            ) : (
-              <p className="insight-placeholder">Signals will appear here once gathered.</p>
-            )}
-          </div>
-        </div>
-      </section>
-    );
-  };
-
   const renderSearchTab = (): JSX.Element => (
     <SearchView
       lookupForm={lookupForm}
@@ -1427,6 +1100,9 @@ export function PopupApp(): JSX.Element {
                 Clear cache
               </button>
             ) : null}
+            <button className="ghost-button" onClick={handleExportToVenmail} title="Export this lookup to your Venmail account">
+              <ExternalLink size={16} /> Export to Venmail
+            </button>
             <button className="ghost-button" onClick={() => setViewMode('search')}>
               <EditIcon size={16} /> Edit search
             </button>
@@ -1442,11 +1118,6 @@ export function PopupApp(): JSX.Element {
               <li key={index}>{line}</li>
             ))}
           </ul>
-        </section>
-
-        <section className="insights-card">
-          <h3>Detected contacts</h3>
-          <DetectionSnapshot snapshot={detectionSnapshot} onLookup={handleDetectionLookup} />
         </section>
       </div>
     );

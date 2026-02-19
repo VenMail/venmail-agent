@@ -189,24 +189,20 @@ header h1 {
 }
 
 .status-info {
-  border-radius: 0px;
   color: var(--venmail-muted);
 }
 
 .status-success {
-  border-radius: 0px;
   color: var(--venmail-success);
   border-color: rgba(34, 197, 94, 0.35);
 }
 
 .status-warning {
-  border-radius: 0px;
   color: var(--venmail-warning);
   border-color: rgba(245, 158, 11, 0.45);
 }
 
 .status-error {
-  border-radius: 0px;
   color: var(--venmail-error);
   border-color: rgba(248, 113, 113, 0.45);
 }
@@ -784,16 +780,31 @@ button:not(:disabled):hover {
 .detection-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+}
+
+.detection-meta {
+  margin: 0;
+  color: var(--venmail-muted);
+  font-size: 0.78rem;
+}
+
+.detection-list ul {
   margin: 0;
   padding: 0;
   list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.detection-item {
+.detection-list li {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
   padding: 8px 10px;
   border-radius: 8px;
   background: rgba(15, 23, 42, 0.6);
@@ -801,8 +812,18 @@ button:not(:disabled):hover {
   font-size: 0.8rem;
 }
 
-.detection-item span {
+.contact-value {
   display: block;
+  font-weight: 600;
+  color: #f8fafc;
+  word-break: break-word;
+}
+
+.contact-context {
+  display: block;
+  color: var(--venmail-muted);
+  font-size: 0.75rem;
+  word-break: break-word;
 }
 
 .detection-hint {

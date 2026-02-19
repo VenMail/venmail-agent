@@ -1,0 +1,1388 @@
+{
+  "extensionName": {
+    "message": "Search by Image",
+    "description": "Name of the extension."
+  },
+
+  "extensionDescription": {
+    "message": "A powerful reverse image search tool, with support for various search engines, such as Google, Bing, Yandex, Baidu and TinEye.",
+    "description": "Description of the extension."
+  },
+
+  "engineName_bing": {
+    "message": "Bing",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_yandex": {
+    "message": "Yandex",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_baidu": {
+    "message": "Baidu",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_tineye": {
+    "message": "TinEye",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_sogou": {
+    "message": "Sogou",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_whatanime": {
+    "message": "trace.moe",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_saucenao": {
+    "message": "SauceNAO",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_iqdb": {
+    "message": "IQDB",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_ascii2d": {
+    "message": "Ascii2d",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_getty": {
+    "message": "Getty",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_istock": {
+    "message": "iStock",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_shutterstock": {
+    "message": "Shutterstock",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_adobestock": {
+    "message": "Adobe Stock",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_depositphotos": {
+    "message": "Depositphotos",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_pinterest": {
+    "message": "Pinterest",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_qihoo": {
+    "message": "360 Search",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_taobao": {
+    "message": "Taobao",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_alibabaChina": {
+    "message": "Alibaba China",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_dreamstime": {
+    "message": "Dreamstime",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_alamy": {
+    "message": "Alamy",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_123rf": {
+    "message": "123RF",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_esearch": {
+    "message": "eSearch plus",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_tmview": {
+    "message": "TMview",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_branddb": {
+    "message": "Global Brand Database",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_madridMonitor": {
+    "message": "Madrid Monitor",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_auTrademark": {
+    "message": "Australian Trade Mark Search",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_auDesign": {
+    "message": "Australian Design Search",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_nzTrademark": {
+    "message": "IPONZ Trade Mark Check",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_jpDesign": {
+    "message": "Graphic Image Park",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_pimeyes": {
+    "message": "PimEyes",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_stocksy": {
+    "message": "Stocksy United",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_pond5": {
+    "message": "Pond5",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_pixta": {
+    "message": "PIXTA",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_ikea": {
+    "message": "IKEA",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_repostSleuth": {
+    "message": "Reddit Repost Sleuth",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_shein": {
+    "message": "SHEIN",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_lykdat": {
+    "message": "LykDat",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_wildberries": {
+    "message": "Wildberries",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_googleLens": {
+    "message": "Google",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_lexica": {
+    "message": "Lexica",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_kagi": {
+    "message": "Kagi",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_freepik": {
+    "message": "Freepik",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_icons8": {
+    "message": "Icons8",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_lenso": {
+    "message": "Lenso.ai",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_googleImages": {
+    "message": "Google Images (deprecated)",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_unsplash": {
+    "message": "Unsplash",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_vcg": {
+    "message": "VCG",
+    "description": "Name of the search engine."
+  },
+
+  "engineName_allEngines": {
+    "message": "all search engines",
+    "description": "Name of the search engine."
+  },
+
+  "actionTitle_allEngines": {
+    "message": "Search all engines for image",
+    "description": "Title of the action."
+  },
+
+  "actionTitle_engine": {
+    "message": "Search $ENGINE$ for image",
+    "description": "Title of the action.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "menuItemTitle_bing": {
+    "message": "Bing",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_yandex": {
+    "message": "Yandex",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_baidu": {
+    "message": "Baidu",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_tineye": {
+    "message": "TinEye",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_sogou": {
+    "message": "Sogou",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_whatanime": {
+    "message": "trace.moe",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_saucenao": {
+    "message": "SauceNAO",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_iqdb": {
+    "message": "IQDB",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_ascii2d": {
+    "message": "Ascii2d",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_getty": {
+    "message": "Getty",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_istock": {
+    "message": "iStock",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_shutterstock": {
+    "message": "Shutterstock",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_adobestock": {
+    "message": "Adobe Stock",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_depositphotos": {
+    "message": "Depositphotos",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_pinterest": {
+    "message": "Pinterest",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_qihoo": {
+    "message": "360 Search",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_taobao": {
+    "message": "Taobao",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_alibabaChina": {
+    "message": "Alibaba China",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_dreamstime": {
+    "message": "Dreamstime",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_alamy": {
+    "message": "Alamy",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_123rf": {
+    "message": "123RF",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_esearch": {
+    "message": "eSearch plus",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_tmview": {
+    "message": "TMview",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_branddb": {
+    "message": "Global Brand Database",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_madridMonitor": {
+    "message": "Madrid Monitor",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_auTrademark": {
+    "message": "Australian Trade Mark Search",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_auDesign": {
+    "message": "Australian Design Search",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_nzTrademark": {
+    "message": "IPONZ Trade Mark Check",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_jpDesign": {
+    "message": "Graphic Image Park",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_pimeyes": {
+    "message": "PimEyes",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_stocksy": {
+    "message": "Stocksy United",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_pond5": {
+    "message": "Pond5",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_pixta": {
+    "message": "PIXTA",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_ikea": {
+    "message": "IKEA",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_repostSleuth": {
+    "message": "Reddit Repost Sleuth",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_shein": {
+    "message": "SHEIN",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_lykdat": {
+    "message": "LykDat",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_wildberries": {
+    "message": "Wildberries",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_googleLens": {
+    "message": "Google",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_lexica": {
+    "message": "Lexica",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_kagi": {
+    "message": "Kagi",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_freepik": {
+    "message": "Freepik",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_icons8": {
+    "message": "Icons8",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_lenso": {
+    "message": "Lenso.ai",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_googleImages": {
+    "message": "Google Images (deprecated)",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_unsplash": {
+    "message": "Unsplash",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_vcg": {
+    "message": "VCG",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_allEngines": {
+    "message": "All search engines",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_viewImage": {
+    "message": "Open image",
+    "description": "Title of the menu item."
+  },
+
+  "menuItemTitle_shareImage": {
+    "message": "Share image",
+    "description": "Title of the menu item."
+  },
+
+  "mainMenuItemTitle_allEngines": {
+    "message": "Search all engines for image",
+    "description": "Title of the menu item."
+  },
+
+  "mainMenuItemTitle_engine": {
+    "message": "Search $ENGINE$ for image",
+    "description": "Title of the menu item.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "optionSectionTitle_engines": {
+    "message": "Search engines",
+    "description": "Title of the options section."
+  },
+
+  "optionSectionDescription_engines": {
+    "message": "Toggle search engines and customize their order (drag and drop)",
+    "description": "Description of the options section."
+  },
+
+  "optionTitle_bing": {
+    "message": "Bing Images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_yandex": {
+    "message": "Yandex.Images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_baidu": {
+    "message": "Baidu Image Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_tineye": {
+    "message": "TinEye Reverse Image Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_sogou": {
+    "message": "Sogou Images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_whatanime": {
+    "message": "trace.moe",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_saucenao": {
+    "message": "SauceNAO",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_iqdb": {
+    "message": "IQDB",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_ascii2d": {
+    "message": "Ascii2d",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_getty": {
+    "message": "Getty Images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_istock": {
+    "message": "iStock",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_shutterstock": {
+    "message": "Shutterstock",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_adobestock": {
+    "message": "Adobe Stock",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_depositphotos": {
+    "message": "Depositphotos",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_pinterest": {
+    "message": "Pinterest",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_qihoo": {
+    "message": "360 Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_taobao": {
+    "message": "Taobao",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_alibabaChina": {
+    "message": "Alibaba China",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_dreamstime": {
+    "message": "Dreamstime",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_alamy": {
+    "message": "Alamy",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_123rf": {
+    "message": "123RF",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_esearch": {
+    "message": "eSearch plus",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_tmview": {
+    "message": "TMview",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_branddb": {
+    "message": "Global Brand Database",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_madridMonitor": {
+    "message": "Madrid Monitor",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_auTrademark": {
+    "message": "Australian Trade Mark Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_auDesign": {
+    "message": "Australian Design Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_nzTrademark": {
+    "message": "IPONZ Trade Mark Check",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_jpDesign": {
+    "message": "Graphic Image Park",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_pimeyes": {
+    "message": "PimEyes",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_stocksy": {
+    "message": "Stocksy United",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_pond5": {
+    "message": "Pond5",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_pixta": {
+    "message": "PIXTA",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_ikea": {
+    "message": "IKEA",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_repostSleuth": {
+    "message": "Reddit Repost Sleuth",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_shein": {
+    "message": "SHEIN",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_lykdat": {
+    "message": "LykDat",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_wildberries": {
+    "message": "Wildberries",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_googleLens": {
+    "message": "Google Lens",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_lexica": {
+    "message": "Lexica",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_kagi": {
+    "message": "Kagi Search",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_freepik": {
+    "message": "Freepik",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_icons8": {
+    "message": "Icons8",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_lenso": {
+    "message": "Lenso.ai",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_googleImages": {
+    "message": "Google Images (deprecated)",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_unsplash": {
+    "message": "Unsplash",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_vcg": {
+    "message": "VCG",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_searchMode": {
+    "message": "Search mode",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_searchAllEngines": {
+    "message": "Search all engines",
+    "description": "Title of the option."
+  },
+
+  "optionSectionTitle_contextmenu": {
+    "message": "Context menu",
+    "description": "Title of the options section."
+  },
+
+  "optionValue_searchAllEnginesContextMenu_main": {
+    "message": "From context menu",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesContextMenu_sub": {
+    "message": "From submenu of context menu",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesContextMenu_false": {
+    "message": "Disable",
+    "description": "Value of the option."
+  },
+
+  "optionTitle_showInContextMenu": {
+    "message": "Show in context menu",
+    "description": "Title of the option."
+  },
+
+  "optionValue_searchModeContextMenu_selectUrl": {
+    "message": "Select URL",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeContextMenu_selectImage": {
+    "message": "Select image",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeContextMenu_capture": {
+    "message": "Capture",
+    "description": "Value of the option."
+  },
+
+  "optionTitle_viewImageContextMenu": {
+    "message": "Open images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_shareImageContextMenu": {
+    "message": "Share images",
+    "description": "Title of the option."
+  },
+
+  "optionSectionTitle_toolbar": {
+    "message": "Browser toolbar",
+    "description": "Title of the options section."
+  },
+
+  "optionSectionTitleMobile_toolbar": {
+    "message": "Browser menu",
+    "description": "Title of the options section."
+  },
+
+  "optionValue_searchAllEnginesAction_main": {
+    "message": "From browser toolbar",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesAction_sub": {
+    "message": "From browser toolbar popup",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesAction_false": {
+    "message": "Disable",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesActionMobile_main": {
+    "message": "From browser menu",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesActionMobile_sub": {
+    "message": "From browser menu popup",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchAllEnginesActionMobile_false": {
+    "message": "Disable",
+    "description": "Value of the option."
+  },
+
+  "optionValue_action_searchModeAction_selectUrl": {
+    "message": "Select URL",
+    "description": "Value of the option."
+  },
+
+  "optionValue_action_searchModeAction_selectImage": {
+    "message": "Select image",
+    "description": "Value of the option."
+  },
+
+  "optionValue_action_searchModeAction_capture": {
+    "message": "Capture",
+    "description": "Value of the option."
+  },
+
+  "optionValue_action_searchModeAction_browse": {
+    "message": "Browse",
+    "description": "Value of the option."
+  },
+
+  "optionValue_action_searchModeAction_url": {
+    "message": "URL",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeAction_selectUrl": {
+    "message": "Select URL",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeAction_selectImage": {
+    "message": "Select image",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeAction_capture": {
+    "message": "Capture",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeAction_browse": {
+    "message": "Browse",
+    "description": "Value of the option."
+  },
+
+  "optionValue_searchModeAction_url": {
+    "message": "URL",
+    "description": "Value of the option."
+  },
+
+  "optionTitle_autoPasteAction": {
+    "message": "Detect images from clipboard",
+    "description": "Title of the option."
+  },
+
+  "optionSectionTitle_misc": {
+    "message": "Miscellaneous",
+    "description": "Title of the options section."
+  },
+
+  "optionTitle_tabInBackgound": {
+    "message": "Open new tabs in the background",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_appTheme": {
+    "message": "Theme",
+    "description": "Title of the option."
+  },
+
+  "optionValue_appTheme_auto": {
+    "message": "System default",
+    "description": "Value of the option."
+  },
+
+  "optionValue_appTheme_light": {
+    "message": "Light",
+    "description": "Value of the option."
+  },
+
+  "optionValue_appTheme_dark": {
+    "message": "Dark",
+    "description": "Value of the option."
+  },
+
+  "optionTitle_showEngineIcons": {
+    "message": "Show search engine icons",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_showContribPage": {
+    "message": "Show contribution page",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_localGoogle": {
+    "message": "Use local Google site",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_imgFullParse": {
+    "message": "Use deep search when selecting images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_detectAltImageDimension": {
+    "message": "Detect alternative image sizes",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_bypassImageHostBlocking": {
+    "message": "Bypass image host blocking",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_convertSharedImage": {
+    "message": "Convert shared images",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_viewImageUseViewer": {
+    "message": "Always open images in the viewer",
+    "description": "Title of the option."
+  },
+
+  "optionTitle_confirmPaste": {
+    "message": "Confirm images from clipboard",
+    "description": "Title of the option."
+  },
+
+  "optionSectionTitle_sponsors": {
+    "message": "Sponsors",
+    "description": "Title of the options section."
+  },
+
+  "dialogTitle_imageConfirmation": {
+    "message": "Select an image",
+    "description": "Title of the dialog."
+  },
+
+  "dialogTitle_permissionNeeded": {
+    "message": "Permission needed",
+    "description": "Title of the dialog."
+  },
+
+  "dialogText_CanvasAccessNeeded": {
+    "message": "Allow $ENGINE$ to access your canvas image data to search with an image. The permission can be managed from the browser's address bar.",
+    "description": "Error message.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "snackbarMessage_imageSelection": {
+    "message": "Select an image",
+    "description": "Text of the snackbar."
+  },
+
+  "snackbarMessage_imageCapture": {
+    "message": "Select an area",
+    "description": "Text of the snackbar."
+  },
+
+  "buttonLabel_cancel": {
+    "message": "Cancel",
+    "description": "Text of the button."
+  },
+
+  "buttonLabel_close": {
+    "message": "Close",
+    "description": "Text of the button."
+  },
+
+  "buttonLabel_browse": {
+    "message": "Browse",
+    "description": "Text of the button."
+  },
+
+  "buttonLabel_paste": {
+    "message": "Paste",
+    "description": "Text of the button."
+  },
+
+  "buttonLabel_search": {
+    "message": "Search",
+    "description": "Text of the button."
+  },
+
+  "buttonLabel_contribute": {
+    "message": "Contribute",
+    "description": "Label of the button."
+  },
+
+  "buttonTooltip_viewImage": {
+    "message": "Open image",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_shareImage": {
+    "message": "Share image",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_contribute": {
+    "message": "Contribute",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_menu": {
+    "message": "Menu",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_searchMode": {
+    "message": "Search mode",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_options": {
+    "message": "Options",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_pin": {
+    "message": "Pin",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_unpin": {
+    "message": "Unpin",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_clearImage": {
+    "message": "Clear images",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_copyImageUrl": {
+    "message": "Copy image URL",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_close": {
+    "message": "Close",
+    "description": "Tooltip of the button."
+  },
+
+  "buttonTooltip_viewPage": {
+    "message": "Open page",
+    "description": "Tooltip of the button."
+  },
+
+  "pageContent_browse": {
+    "message": "Select images",
+    "description": "Page content."
+  },
+
+  "pageContent_browse_drag": {
+    "message": "Drag images here",
+    "description": "Page content."
+  },
+
+  "pageContent_browse_drop": {
+    "message": "Drop images here",
+    "description": "Page content."
+  },
+
+  "pageContent_largest_image": {
+    "message": "Largest image",
+    "description": "Page content."
+  },
+
+  "pageContent_widest_image": {
+    "message": "Widest image",
+    "description": "Page content."
+  },
+
+  "pageContent_tallest_image": {
+    "message": "Tallest image",
+    "description": "Page content."
+  },
+
+  "inputPlaceholder_imageUrl": {
+    "message": "Image URL",
+    "description": "Placeholder of the input."
+  },
+
+  "pageTitle": {
+    "message": "$PAGETITLE$ - $EXTENSIONNAME$",
+    "description": "Title of the page.",
+    "placeholders": {
+      "pageTitle": {
+        "content": "$1",
+        "example": "Options"
+      },
+      "extensionName": {
+        "content": "$2",
+        "example": "Extension Name"
+      }
+    }
+  },
+
+  "pageTitle_options": {
+    "message": "Options",
+    "description": "Title of the page."
+  },
+
+  "pageTitle_browse": {
+    "message": "Browse",
+    "description": "Title of the page."
+  },
+
+  "pageTitle_view": {
+    "message": "Image",
+    "description": "Title of the page."
+  },
+
+  "pageTitle_contribute": {
+    "message": "Contribute",
+    "description": "Title of the page."
+  },
+
+  "actionMenu_viewImage": {
+    "message": "Open image",
+    "description": "Title of the menu item."
+  },
+
+  "actionMenu_shareImage": {
+    "message": "Share image",
+    "description": "Title of the menu item."
+  },
+
+  "actionMenu_contribute": {
+    "message": "Contribute",
+    "description": "Title of the menu item."
+  },
+
+  "actionMenu_options": {
+    "message": "Options",
+    "description": "Title of the menu item."
+  },
+
+  "actionMenu_support": {
+    "message": "Support",
+    "description": "Title of the menu item."
+  },
+
+  "error_invalidPageUrl": {
+    "message": "The page URL is not valid.",
+    "description": "Error message."
+  },
+
+  "error_sessionExpired": {
+    "message": "The session has expired.",
+    "description": "Error message."
+  },
+
+  "error_sessionExpiredEngine": {
+    "message": "The session has expired. Try searching again for the image on $ENGINE$.",
+    "description": "Error message.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "error_invalidImageSize": {
+    "message": "The uploaded image is too large. $ENGINE$ accepts images up to $SIZE$ in size.",
+    "description": "Error message.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      },
+      "size": {
+        "content": "$2",
+        "example": "10 MB"
+      }
+    }
+  },
+
+  "unit_mb": {
+    "message": "$VALUE$ MB",
+    "description": "Unit notation.",
+    "placeholders": {
+      "value": {
+        "content": "$1",
+        "example": "10"
+      }
+    }
+  },
+
+  "error_invalidImageUrl": {
+    "message": "The image URL is not valid.",
+    "description": "Error message."
+  },
+
+  "error_invalidImageUrl_fileUrl": {
+    "message": "Searching for images loaded from local file URLs is not supported.",
+    "description": "Error message."
+  },
+
+  "error_invalidSearchMode_url": {
+    "message": "Searching for image URLs is only supported from the browser toolbar popup. Visit the extension's options to select a different search mode.",
+    "description": "Error message."
+  },
+
+  "error_invalidSearchModeMobile_url": {
+    "message": "Searching for image URLs is only supported from the browser menu popup. Visit the extension's options to select a different search mode.",
+    "description": "Error message."
+  },
+
+  "error_invalidImageFile": {
+    "message": "The selected items are not images.",
+    "description": "Error message."
+  },
+
+  "error_invalidImageCount": {
+    "message": "Select fewer images. Up to three images can be uploaded at once.",
+    "description": "Error message."
+  },
+
+  "error_engine": {
+    "message": "Something went wrong. Searching on $ENGINE$ has failed.",
+    "description": "Error message.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "error_scriptsNotAllowed": {
+    "message": "Content scripts are not allowed on this page.",
+    "description": "Error message."
+  },
+
+  "error_imageNotFound": {
+    "message": "No image found. Try searching again by selecting an image.",
+    "description": "Error message."
+  },
+
+  "error_imageShareNotSupported": {
+    "message": "The selected image cannot be shared.",
+    "description": "Error message."
+  },
+
+  "error_invalidSearchMethod": {
+    "message": "The selected search engine does not support the current search method.",
+    "description": "Error message."
+  },
+
+  "error_invalidCaptureArea": {
+    "message": "Select a page area to capture before searching.",
+    "description": "Error message."
+  },
+
+  "error_allEnginesDisabled": {
+    "message": "All search engines have been disabled. Visit the extensions's options to enable a search engine.",
+    "description": "Error message."
+  },
+
+  "error_noSearchEngineAccess": {
+    "message": "Cannot access search page results. Visit Menu > Extensions and enable the \"Allow access to search page results\" option for the extension.",
+    "description": "Error message."
+  },
+
+  "error_optionsNotApplied": {
+    "message": "Restart the browser for changes to take effect.",
+    "description": "Error message."
+  },
+
+  "error_noClipboardReadAccess": {
+    "message": "Cannot get data from the clipboard.",
+    "description": "Error message."
+  },
+
+  "error_noClipboardWriteAccess": {
+    "message": "Cannot add data to the clipboard.",
+    "description": "Error message."
+  },
+
+  "error_noCanvasAccess": {
+    "message": "Cannot access canvas data. Try searching again and allow $ENGINE$ to access your canvas image data.",
+    "description": "Error message.",
+    "placeholders": {
+      "engine": {
+        "content": "$1",
+        "example": "Google"
+      }
+    }
+  },
+
+  "error_pageParseError": {
+    "message": "Something went wrong. The web page could not be parsed.",
+    "description": "Error message."
+  },
+
+  "error_internalError": {
+    "message": "Something went wrong. Open the browser console for more details.",
+    "description": "Error message."
+  }
+}

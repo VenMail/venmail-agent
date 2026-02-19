@@ -343,7 +343,7 @@ function notifySettingsUpdated(settings: ExtensionSettings): void {
 }
 
 function notifyDetectionUpdate(tabId: number, snapshot: DetectedContactSnapshot | null): void {
-  chrome.runtime.sendMessage({ type: 'venmail-detection-updated', tabId, snapshot }, () => {
+  chrome.runtime.sendMessage({ type: 'venmail-detection-updated', detection: { tabId, snapshot } }, () => {
     void chrome.runtime.lastError;
   });
 }
@@ -355,7 +355,7 @@ function notifyContextLookupUpdate(payload: {
   updatedAt?: string;
   context?: FetchContactInfoMessage['context'];
 }): void {
-  chrome.runtime.sendMessage({ type: 'venmail-context-lookup', ...payload }, () => {
+  chrome.runtime.sendMessage({ type: 'venmail-context-lookup', contextLookup: payload }, () => {
     void chrome.runtime.lastError;
   });
 }

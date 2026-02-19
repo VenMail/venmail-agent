@@ -1,0 +1,10 @@
+video,
+audio {
+  pointer-events: none !important;
+}
+
+@media (hover: hover) {
+  * {
+    cursor: pointer !important;
+  }
+}
