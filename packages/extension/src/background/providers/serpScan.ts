@@ -122,9 +122,9 @@ const SEARCH_ENGINES: SearchEngine[] = [
     selector: 'li.b_algo, div.b_algo'
   },
   {
-    name: 'duckduckgo',
-    buildUrl: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
-    selector: 'article[data-testid="result"], li[data-layout="organic"]'
+    name: 'brave',
+    buildUrl: (q) => `https://search.brave.com/search?q=${encodeURIComponent(q)}&source=web`,
+    selector: 'div[data-type="web"], .web-result, .result, .snippet, div[id*="result"]'
   }
 ];
 
@@ -144,6 +144,8 @@ registerScrapeTask('serp-scan', {
     const queries = buildSearchQueries({ name, domain, company });
     const notes: string[] = [];
 
+    console.log('[serp-scan] Starting scan for:', { name, domain, company });
+
     try {
       const strategy = determineSearchStrategy({
         name: lookup.name,
@@ -155,7 +157,11 @@ registerScrapeTask('serp-scan', {
       const enginesToUse = SEARCH_ENGINES.filter((e) => strategy.searchEngines.includes(e.name));
       const searchQueries = [strategy.primaryQuery, ...strategy.secondaryQueries].filter(Boolean);
 
+      console.log('[serp-scan] Strategy:', strategy.type, '| Engines:', enginesToUse.map(e => e.name), '| Queries:', searchQueries);
+
       const allHighlights = await performAutomatedSearches(searchQueries, enginesToUse, signal);
+
+      console.log('[serp-scan] Raw highlights from all engines:', allHighlights.length);
 
       if (allHighlights.length === 0) {
         notes.push('⚠️ SERP scan returned no results from any search engine.');
@@ -175,6 +181,8 @@ registerScrapeTask('serp-scan', {
         if (!sourceByUrl.has(h.url)) sourceByUrl.set(h.url, h.source ?? 'serp-auto');
       }
 
+      console.log('[serp-scan] Filtered highlights:', filtered.length);
+
       const highlights = dedupeByUrl(
         filtered.map((f) => ({
           title: f.title,
@@ -187,6 +195,50 @@ registerScrapeTask('serp-scan', {
         .sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
         .slice(0, 30);
       
+      console.log('[serp-scan] Final highlights (top 5):',
+        highlights.slice(0, 5).map(h => ({ title: h.title.slice(0, 60), url: h.url, snippet: (h.snippet ?? '').slice(0, 80) }))
+      );
+
+      // Extract emails/phones directly from SERP snippets
+      const serpEmails: string[] = [];
+      const serpPhones: string[] = [];
+      for (const h of highlights) {
+        const combinedText = `${h.title} ${h.snippet ?? ''}`;
+        const emailRegex = /\b[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)*\.[a-z]{2,}\b/gi;
+        const phoneRegex = /(?:\+?\d{1,3}[-\.\s]?)?(?:\(?\d{1,4}\)?[-\.\s]?)?\d{1,4}[-\.\s]?\d{1,4}[-\.\s]?\d{1,9}\b/g;
+        const emailMatches = Array.from(combinedText.matchAll(emailRegex)).map(m => m[0].toLowerCase());
+        const phoneMatches = Array.from(combinedText.matchAll(phoneRegex)).map(m => m[0].trim());
+        serpEmails.push(...emailMatches);
+        serpPhones.push(...phoneMatches);
+      }
+      if (serpEmails.length) console.log('[serp-scan] Emails found in SERP snippets:', [...new Set(serpEmails)]);
+      if (serpPhones.length) console.log('[serp-scan] Phones found in SERP snippets:', [...new Set(serpPhones)]);
+
+      // Validate and dedupe SERP emails/phones
+      const validSerpEmails = [...new Set(serpEmails)].filter(email => {
+        const parts = email.split('@');
+        if (parts.length !== 2) return false;
+        const [local, domain] = parts;
+        if (!local || local.length > 64 || !domain || domain.length > 255) return false;
+        const blacklist = ['noreply', 'no-reply', 'example', 'test', 'demo', 'user@', 'email@'];
+        if (blacklist.some(b => local.toLowerCase().startsWith(b))) return false;
+        if (!/^[a-z0-9._%+\-]+$/i.test(local)) return false;
+        return true;
+      });
+
+      const validSerpPhones = [...new Set(serpPhones)].filter(phone => {
+        const digitsOnly = phone.replace(/\D/g, '');
+        if (digitsOnly.length < 7 || digitsOnly.length > 15) return false;
+        if (/^(0+|1{7,}|(\d)\1{6,})$/.test(digitsOnly)) return false;
+        return true;
+      }).map(phone => {
+        const cleaned = phone.replace(/[^0-9+]/g, '');
+        const digitCount = cleaned.replace(/\+/g, '').length;
+        if (cleaned.startsWith('+')) return cleaned;
+        if (digitCount === 10) return `+1${cleaned}`;
+        return `+${cleaned}`;
+      });
+
       // Extract data from results
       const linkedInProfile = extractLinkedInProfile(highlights, name, company);
       const socialProfiles = extractInlineSocial(highlights, name, company);
@@ -222,6 +274,21 @@ registerScrapeTask('serp-scan', {
 
       registerChannel(contactChannel);
       trust.socialChannels.forEach((channel) => registerChannel(channel));
+
+      // Add SERP-extracted emails/phones as a contact channel if found
+      if (validSerpEmails.length > 0 || validSerpPhones.length > 0) {
+        const serpChannel: ContactChannel = {
+          url: 'serp-extraction',
+          emails: validSerpEmails.length > 0 ? validSerpEmails.slice(0, 8) : undefined,
+          phones: validSerpPhones.length > 0 ? validSerpPhones.slice(0, 8) : undefined,
+          notes: `Extracted from ${highlights.length} search results`
+        };
+        registerChannel(serpChannel);
+        console.log('[serp-scan] Added SERP contact channel:', { 
+          emails: validSerpEmails.length, 
+          phones: validSerpPhones.length 
+        });
+      }
 
       const contactChannels = Array.from(channelMap.values());
       
@@ -284,6 +351,14 @@ registerScrapeTask('serp-scan', {
         }
       }
 
+      // Add notes for SERP-extracted contact info
+      if (validSerpEmails.length > 0 || validSerpPhones.length > 0) {
+        const contactInfo = [];
+        if (validSerpEmails.length > 0) contactInfo.push(`${validSerpEmails.length} emails`);
+        if (validSerpPhones.length > 0) contactInfo.push(`${validSerpPhones.length} phones`);
+        notes.push(`✓ Contact info found in search results: ${contactInfo.join(', ')}`);
+      }
+
       if (breachDetected) {
         notes.push('⚠️ Potential security breach detected in results.');
       }
@@ -292,7 +367,7 @@ registerScrapeTask('serp-scan', {
         notes.push('⚠️ Spam/scam indicators found.');
       }
 
-      const hasRelevantData = linkedInProfile || socialProfiles.list.length > 0 || resolvedWebsite || trustedDomains.length > 0;
+      const hasRelevantData = linkedInProfile || socialProfiles.list.length > 0 || resolvedWebsite || trustedDomains.length > 0 || validSerpEmails.length > 0 || validSerpPhones.length > 0;
       const finalConfidence = hasRelevantData ? confidence : Math.max(10, confidence - 40);
 
       const contactScore = contactChannels.length
@@ -383,7 +458,12 @@ async function performAutomatedSearches(
       if (signal.aborted) break;
 
       try {
+        console.log(`[serp-scan] Scraping ${engine.name} for query: "${q}"`);
         const results = await scrapeSearchEngine(engine, q, signal);
+        console.log(`[serp-scan] ${engine.name} returned ${results.length} results for "${q}"`);
+        if (results.length > 0) {
+          console.log(`[serp-scan] ${engine.name} sample:`, results.slice(0, 2).map(r => ({ title: r.title.slice(0, 60), url: r.url, snippet: (r.snippet ?? '').slice(0, 80) })));
+        }
         allResults.push(...results);
       } catch (error) {
         console.warn(`[serp-scan] ${engine.name} failed:`, error);
@@ -397,84 +477,197 @@ async function performAutomatedSearches(
   return dedupeByUrl(allResults);
 }
 
-async function scrapeSearchEngine(
+interface ScrapePageResult {
+  results: SearchResultHighlight[];
+  blocked: boolean;
+}
+
+/**
+ * Low-level: opens a tab (normal or incognito), injects scraper, returns raw page result.
+ */
+function scrapeTabForEngine(
   engine: SearchEngine,
   query: string,
-  signal: AbortSignal
-): Promise<SearchResultHighlight[]> {
+  signal: AbortSignal,
+  incognito: boolean
+): Promise<ScrapePageResult> {
   return new Promise((resolve, reject) => {
     if (signal.aborted) {
       reject(new Error('Search aborted'));
       return;
     }
 
-    // Create a hidden tab for scraping
-    const key = `${engine.name}:${query}`;
-    if (inFlightScrapes.has(key)) {
-      resolve([]);
-      return;
-    }
-    inFlightScrapes.add(key);
-    chrome.tabs.create(
-      {
-        url: engine.buildUrl(query),
-        active: false
-      },
-      (tab) => {
-        if (!tab.id) {
-          inFlightScrapes.delete(key);
-          reject(new Error(`Failed to create tab for ${engine.name}`));
-          return;
-        }
+    const createTab = (windowId?: number) => {
+      chrome.tabs.create(
+        { url: engine.buildUrl(query), active: false, ...(windowId ? { windowId } : {}) },
+        (tab) => {
+          if (!tab?.id) {
+            reject(new Error(`Failed to create tab for ${engine.name}`));
+            return;
+          }
 
-        const tabId = tab.id;
-        const timeout = setTimeout(() => {
-          chrome.tabs.remove(tabId, () => {});
-          inFlightScrapes.delete(key);
-          reject(new Error(`Timeout scraping ${engine.name}`));
-        }, 15000);
+          const tabId = tab.id;
+          const timeout = setTimeout(() => {
+            chrome.tabs.remove(tabId, () => {});
+            reject(new Error(`Timeout scraping ${engine.name}`));
+          }, 15000);
 
-        // Wait for page to load, then scrape
-        chrome.tabs.onUpdated.addListener(function listener(updatedTabId, changeInfo) {
-          if (updatedTabId !== tabId) return;
+          chrome.tabs.onUpdated.addListener(function listener(updatedTabId, changeInfo) {
+            if (updatedTabId !== tabId) return;
+            if (changeInfo.status !== 'complete') return;
 
-          if (changeInfo.status === 'complete') {
             chrome.tabs.onUpdated.removeListener(listener);
             clearTimeout(timeout);
 
-            // Give page a moment to render
             setTimeout(() => {
               chrome.scripting.executeScript(
-                {
-                  target: { tabId },
-                  func: scrapeResultsFromPage,
-                  args: [engine.name, engine.selector]
-                },
+                { target: { tabId }, func: scrapeResultsFromPage, args: [engine.name, engine.selector] },
                 (injectionResults) => {
-                  // Close the tab
                   chrome.tabs.remove(tabId, () => {});
 
                   if (chrome.runtime.lastError) {
-                    inFlightScrapes.delete(key);
                     reject(new Error(`Script injection failed: ${chrome.runtime.lastError.message}`));
                     return;
                   }
 
-                  const results = injectionResults?.[0]?.result as SearchResultHighlight[] | undefined;
-                  inFlightScrapes.delete(key);
-                  resolve(results ?? []);
+                  const raw = injectionResults?.[0]?.result as ScrapePageResult | undefined;
+                  resolve(raw ?? { results: [], blocked: false });
                 }
               );
-            }, 1500); // Wait for dynamic content
+            }, 1500);
+          });
+        }
+      );
+    };
+
+    if (incognito) {
+      chrome.windows.create({ incognito: true, state: 'minimized' }, (win) => {
+        if (!win?.id) {
+          reject(new Error('Failed to create incognito window'));
+          return;
+        }
+        const winId = win.id;
+        // Wrap so we can close the window after the tab is done
+        const origCreate = createTab;
+        chrome.tabs.create(
+          { url: engine.buildUrl(query), active: false, windowId: winId },
+          (tab) => {
+            if (!tab?.id) {
+              chrome.windows.remove(winId, () => {});
+              reject(new Error(`Failed to create incognito tab for ${engine.name}`));
+              return;
+            }
+
+            const tabId = tab.id;
+            const timeout = setTimeout(() => {
+              chrome.windows.remove(winId, () => {});
+              reject(new Error(`Timeout scraping ${engine.name} (incognito)`));
+            }, 15000);
+
+            chrome.tabs.onUpdated.addListener(function listener(updatedTabId, changeInfo) {
+              if (updatedTabId !== tabId) return;
+              if (changeInfo.status !== 'complete') return;
+
+              chrome.tabs.onUpdated.removeListener(listener);
+              clearTimeout(timeout);
+
+              setTimeout(() => {
+                chrome.scripting.executeScript(
+                  { target: { tabId }, func: scrapeResultsFromPage, args: [engine.name, engine.selector] },
+                  (injectionResults) => {
+                    chrome.windows.remove(winId, () => {});
+
+                    if (chrome.runtime.lastError) {
+                      reject(new Error(`Script injection failed (incognito): ${chrome.runtime.lastError.message}`));
+                      return;
+                    }
+
+                    const raw = injectionResults?.[0]?.result as ScrapePageResult | undefined;
+                    resolve(raw ?? { results: [], blocked: false });
+                  }
+                );
+              }, 1500);
+            });
           }
-        });
-      }
-    );
+        );
+        void origCreate; // suppress unused warning
+      });
+    } else {
+      createTab();
+    }
   });
 }
 
+const DUCKDUCKGO_ENGINE: SearchEngine = {
+  name: 'duckduckgo',
+  buildUrl: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
+  selector: 'article[data-testid="result"], li[data-layout="organic"]'
+};
+
+/**
+ * Public scraper: attempts normal tab, retries incognito on block, then falls back to DuckDuckGo.
+ */
+async function scrapeSearchEngine(
+  engine: SearchEngine,
+  query: string,
+  signal: AbortSignal
+): Promise<SearchResultHighlight[]> {
+  const key = `${engine.name}:${query}`;
+  if (inFlightScrapes.has(key)) return [];
+  inFlightScrapes.add(key);
+
+  try {
+    // Attempt 1: normal tab
+    const attempt1 = await scrapeTabForEngine(engine, query, signal, false);
+
+    if (!attempt1.blocked && attempt1.results.length > 0) {
+      return attempt1.results;
+    }
+
+    if (attempt1.blocked) {
+      console.warn(`[serp-scan] ${engine.name} appears blocked for "${query}" — retrying via incognito`);
+
+      // Attempt 2: incognito tab
+      try {
+        const attempt2 = await scrapeTabForEngine(engine, query, signal, true);
+
+        if (!attempt2.blocked && attempt2.results.length > 0) {
+          console.log(`[serp-scan] Incognito retry succeeded for ${engine.name}: ${attempt2.results.length} results`);
+          return attempt2.results;
+        }
+
+        console.warn(`[serp-scan] Incognito retry also blocked for ${engine.name} — falling back to DuckDuckGo`);
+      } catch (incognitoErr) {
+        console.warn(`[serp-scan] Incognito retry failed for ${engine.name}:`, incognitoErr);
+      }
+
+      // Attempt 3: DuckDuckGo fallback (only if original engine wasn't already DDG)
+      if (engine.name !== 'duckduckgo') {
+        const ddgKey = `duckduckgo:${query}`;
+        if (!inFlightScrapes.has(ddgKey)) {
+          inFlightScrapes.add(ddgKey);
+          try {
+            const attempt3 = await scrapeTabForEngine(DUCKDUCKGO_ENGINE, query, signal, false);
+            console.log(`[serp-scan] DuckDuckGo fallback for "${query}": ${attempt3.results.length} results (blocked=${attempt3.blocked})`);
+            return attempt3.results;
+          } catch (ddgErr) {
+            console.warn(`[serp-scan] DuckDuckGo fallback failed:`, ddgErr);
+          } finally {
+            inFlightScrapes.delete(ddgKey);
+          }
+        }
+      }
+    }
+
+    return attempt1.results;
+  } finally {
+    inFlightScrapes.delete(key);
+  }
+}
+
 // This function runs in the context of the search results page
-function scrapeResultsFromPage(engineName: string, selector: string): SearchResultHighlight[] {
+// NOTE: return type must match ScrapePageResult but we can't reference it here (page context)
+function scrapeResultsFromPage(engineName: string, selector: string): { results: SearchResultHighlight[]; blocked: boolean } {
   const results: SearchResultHighlight[] = [];
 
   try {
@@ -506,15 +699,29 @@ function scrapeResultsFromPage(engineName: string, selector: string): SearchResu
           const snippetEl = element.querySelector('.b_caption p, .b_attribution, .b_algoSlug');
           snippet = snippetEl?.textContent?.trim() || '';
 
-        } else if (engineName === 'duckduckgo') {
-          const link = element.querySelector('a[data-testid="result-title-a"], h2 a, a[href]') as HTMLAnchorElement;
+        } else if (engineName === 'brave') {
+          // Brave Search result selectors - try multiple strategies
+          // Strategy 1: standard snippet link
+          let link = element.querySelector('a.heading-serpresult') as HTMLAnchorElement | null;
+          // Strategy 2: any external link in the element
+          if (!link) link = element.querySelector('a[href^="https://"], a[href^="http://"]') as HTMLAnchorElement | null;
           if (!link) continue;
-          
+
           url = link.href;
-          title = link.textContent?.trim() || '';
-          
-          const snippetEl = element.querySelector('[data-result="snippet"], .result__snippet');
-          snippet = snippetEl?.textContent?.trim() || '';
+          // Skip Brave internal URLs
+          if (url.includes('search.brave.com') || url.includes('brave.com/search')) continue;
+
+          title = (element.querySelector('.title, h3, .snippet-title, .heading-serpresult, .result-title, [data-testid="title"]') as HTMLElement)?.textContent?.trim()
+            || link.textContent?.trim() || '';
+
+          const snippetEl = element.querySelector('.snippet-description, .snippet-content, .body, p, .description, [data-testid="description"]');
+          snippet = snippetEl?.textContent?.trim() || element.textContent?.trim().slice(0, 300) || '';
+
+          // Also grab full element text to catch any inline emails/phones
+          const fullText = element.textContent || '';
+          const emailRegex = /\b[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)*\.[a-z]{2,}\b/gi;
+          const inlineEmails = Array.from(fullText.matchAll(emailRegex)).map(m => m[0].toLowerCase()).join(' ');
+          if (inlineEmails) snippet = `${snippet} ${inlineEmails}`.trim();
         }
 
         if (url && title) {
@@ -529,7 +736,7 @@ function scrapeResultsFromPage(engineName: string, selector: string): SearchResu
           results.push({
             title: title.slice(0, 200),
             url,
-            snippet: snippet.slice(0, 300),
+            snippet: snippet.slice(0, 500),
             score: 0,
             source: `${engineName}-auto`
           });
@@ -538,11 +745,46 @@ function scrapeResultsFromPage(engineName: string, selector: string): SearchResu
         continue;
       }
     }
+
+    // Fallback: if engine-specific selector yielded nothing, try generic link scraping
+    if (results.length === 0 && engineName === 'brave') {
+      console.warn(`[serp-scan][page] Brave primary selector yielded 0 results, trying fallback scraper`);
+      const allLinks = Array.from(document.querySelectorAll('a[href^="https://"], a[href^="http://"]')) as HTMLAnchorElement[];
+      for (const link of allLinks) {
+        const href = link.href;
+        if (!href || href.includes('search.brave.com') || href.includes('brave.com')) continue;
+        const titleText = link.textContent?.trim() || '';
+        if (!titleText || titleText.length < 5) continue;
+        const parent = link.closest('li, div, article') || link.parentElement;
+        const snippetText = parent?.textContent?.trim().slice(0, 300) || '';
+        results.push({
+          title: titleText.slice(0, 200),
+          url: href,
+          snippet: snippetText.slice(0, 1500),
+          score: 0,
+          source: 'brave-fallback'
+        });
+        if (results.length >= 20) break;
+      }
+      console.log(`[serp-scan][page] Brave fallback scraper found ${results.length} results`);
+    }
+
+    // Block detection: page has substantial content but all extraction strategies yielded nothing
+    if (results.length === 0) {
+      const bodyText = document.body?.innerText || '';
+      const externalLinkCount = document.querySelectorAll('a[href^="https://"], a[href^="http://"]').length;
+      // If page has meaningful content but we got nothing, it's likely blocked/gated
+      const isBlocked = bodyText.length > 1500 && externalLinkCount < 3;
+      if (isBlocked) {
+        console.warn(`[serp-scan][page] Block detected on ${engineName}: bodyText=${bodyText.length} chars, externalLinks=${externalLinkCount}`);
+      }
+      return { results, blocked: isBlocked };
+    }
   } catch (error) {
     console.error(`Error scraping ${engineName}:`, error);
   }
 
-  return results;
+  return { results, blocked: false };
 }
 
 async function enrichTrustIndicators(
@@ -586,7 +828,9 @@ async function enrichTrustIndicators(
   for (const candidate of candidateUrls) {
     if (signal.aborted) break;
     try {
+      console.log(`[serp-scan] Scraping social/contact page: ${candidate.url}`);
       const { meta, contacts } = await scrapeSocialMeta(candidate.url, signal);
+      console.log(`[serp-scan] Social scrape result for ${candidate.url}:`, { platform: meta?.platform, emails: contacts?.emails, phones: contacts?.phones });
       const platform = meta?.platform ?? candidate.platformHint;
       const followerLabel = normalizeFollowerCount(meta?.followers);
       if (platform && followerLabel) {
@@ -700,15 +944,20 @@ async function scrapeSocialMeta(
                     .replace(/&[a-z]+;/gi, ' ')
                     .replace(/&#\d+;/g, ' ');
 
-                  // Improved email extraction
+                  // Improved email extraction - search both visibleText and raw HTML (for mailto: links)
                   const emailRegex = /\b[a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9\-]{0,61}[a-z0-9])?)*\.[a-z]{2,}\b/gi;
-                  const emailMatches = Array.from(visibleText.matchAll(emailRegex)).map(m => m[0].toLowerCase());
-                  const emails = Array.from(new Set(emailMatches.filter(e => {
+                  const mailtoRegex = /mailto:([a-z0-9][a-z0-9._%+\-]{0,63}@[a-z0-9][a-z0-9.\-]*\.[a-z]{2,})/gi;
+                  const emailMatchesText = Array.from(visibleText.matchAll(emailRegex)).map(m => m[0].toLowerCase());
+                  const emailMatchesMailto = Array.from(html.matchAll(mailtoRegex)).map(m => (m[1] || '').toLowerCase());
+                  const emailMatchesHref = Array.from(html.matchAll(/href=["']mailto:([^"'\s]+)["']/gi)).map(m => (m[1] || '').toLowerCase());
+                  const allEmailMatches = [...emailMatchesText, ...emailMatchesMailto, ...emailMatchesHref];
+                  const emails = Array.from(new Set(allEmailMatches.filter(e => {
                     const [local, domain] = e.split('@');
                     if (!local || !domain) return false;
-                    const blacklist = ['noreply', 'no-reply', 'example', 'test', 'demo'];
-                    return !blacklist.some(b => local.startsWith(b));
-                  }))).slice(0, 5);
+                    const blacklist = ['noreply', 'no-reply', 'example', 'test', 'demo', 'user@', 'email@'];
+                    return !blacklist.some(b => local.startsWith(b)) && domain.includes('.');
+                  }))).slice(0, 10);
+                  console.log('[serp-scan][page-scrape] Emails found:', emails, '| URL:', location.href);
 
                   // Improved phone extraction from visible text only
                   const phoneRegex = /(?:\+?\d{1,3}[-\.\s]?)?(?:\(?\d{1,4}\)?[-\.\s]?)?\d{1,4}[-\.\s]?\d{1,4}[-\.\s]?\d{1,9}\b/g;
