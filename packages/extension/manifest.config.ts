@@ -3,7 +3,7 @@ import { defineManifest } from '@crxjs/vite-plugin';
 export default defineManifest({
   manifest_version: 3,
   name: 'Venmail Agent',
-  version: '0.0.1',
+  version: '0.0.2',
   description: 'Contact reputation ranking, extraction, and verification companion.',
   permissions: ['storage', 'activeTab', 'scripting', 'tabs', 'contextMenus', 'notifications'],
   host_permissions: ['https://*/*', 'http://*/*'],
